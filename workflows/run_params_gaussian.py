@@ -8,41 +8,11 @@ Corresponds to run_all.sh lines:
 """
 
 import os
-import re
 import subprocess
 import textwrap
 from pathlib import Path
 
 
-def run(resn: str = "AR6", g16root: str = "/Users/mewall/packages", nproc: int = 8):
-    base_dir = Path.cwd()
-    lig_dir = base_dir / "ligand"
-    lig_dir.mkdir(parents=True, exist_ok=True)
-    os.chdir(lig_dir)
-
-    try:
-        _run_parameterization(resn, g16root, nproc)
-    finally:
-        os.chdir(base_dir)
-
-
-def _run_parameterization(resn: str, g16root: str, nproc: int):
-    os.environ["g16root"] = g16root
-    g16_profile = os.path.join(g16root, "g16", "bsd", "g16.profile")
-    if os.path.exists(g16_profile):
-        subprocess.run(["bash", "-c", f"source {g16_profile}"], check=True)
-
-    subprocess.run([
-        "antechamber", "-fi", "pdb", "-fo", "gcrt",
-        "-i", f"{resn}.pdb", "-o", f"{resn}.gau",
-        "-nc", "-2", "-m", "1",
-    ], check=True)
-
-    _patch_gaussian_input(resn, nproc)
-    _run_gaussian_opt(resn, nproc)
-    _run_gaussian_esp(resn, nproc)
-    _process_resp_charges(resn)
-    _build_amber_lib(resn)
 
 
 def _patch_gaussian_input(resn: str, nproc: int):
@@ -229,6 +199,38 @@ def _build_amber_lib(resn: str):
     with open("tleap_lig.in", "w") as fh:
         fh.write(tleap_input)
     subprocess.run(["tleap", "-f", "tleap_lig.in"], check=True)
+
+
+def _run_parameterization(resn: str, g16root: str, nproc: int):
+    os.environ["g16root"] = g16root
+    g16_profile = os.path.join(g16root, "g16", "bsd", "g16.profile")
+    if os.path.exists(g16_profile):
+        subprocess.run(["bash", "-c", f"source {g16_profile}"], check=True)
+
+    subprocess.run([
+        "antechamber", "-fi", "pdb", "-fo", "gcrt",
+        "-i", f"{resn}.pdb", "-o", f"{resn}.gau",
+        "-nc", "-2", "-m", "1",
+    ], check=True)
+
+    _patch_gaussian_input(resn, nproc)
+    _run_gaussian_opt(resn, nproc)
+    _run_gaussian_esp(resn, nproc)
+    _process_resp_charges(resn)
+    _build_amber_lib(resn)
+
+
+def run(resn: str = "AR6", g16root: str = "/Users/mewall/packages", nproc: int = 8):
+    base_dir = Path.cwd()
+    lig_dir = base_dir / "ligand"
+    lig_dir.mkdir(parents=True, exist_ok=True)
+    os.chdir(lig_dir)
+
+    try:
+        _run_parameterization(resn, g16root, nproc)
+    finally:
+        os.chdir(base_dir)
+
 
 
 if __name__ == "__main__":
