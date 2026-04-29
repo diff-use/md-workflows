@@ -13,6 +13,7 @@ from pathlib import Path
 
 
 def run(ntomp: int = 26):
+    artifacts_dir = Path("artifacts")
     _extract_first_copy()
     chain_files = _split_chains()
     _generate_restraints(chain_files)
@@ -20,7 +21,7 @@ def run(ntomp: int = 26):
 
     subprocess.run([
         "gmx", "grompp",
-        "-f", "equil.mdp",
+        "-f", str(artifacts_dir / "equil.mdp"),
         "-c", "md_min.gro",
         "-o", "md_equil.tpr",
         "-p", "md_model_posre.top",

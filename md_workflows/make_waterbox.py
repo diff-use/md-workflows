@@ -11,6 +11,7 @@ from pathlib import Path
 
 def run(ntomp: int = 26):
     workdir = Path.cwd()
+    artifacts_dir = workdir / "artifacts"
     wb_dir = workdir / "waterbox"
     wb_dir.mkdir(parents=True, exist_ok=True)
 
@@ -20,8 +21,8 @@ def run(ntomp: int = 26):
     _expand_waterbox(workdir, wb_dir)
     nwat = _count_water(wb_dir)
     _write_topology(workdir, wb_dir, nwat)
-    _minimize_waterbox(workdir, wb_dir, ntomp)
-    _equilibrate_waterbox(workdir, wb_dir, ntomp)
+    _minimize_waterbox(artifacts_dir, wb_dir, ntomp)
+    _equilibrate_waterbox(artifacts_dir, wb_dir, ntomp)
 
 
 def _extract_cryst1(workdir: Path, wb_dir: Path):
@@ -111,10 +112,10 @@ def _write_topology(workdir: Path, wb_dir: Path, nwat: int):
         fh.write(f"WAT              {nwat}\n")
 
 
-def _minimize_waterbox(workdir: Path, wb_dir: Path, ntomp: int):
+def _minimize_waterbox(artifacts_dir: Path, wb_dir: Path, ntomp: int):
     subprocess.run([
         "gmx", "grompp",
-        "-f", str(workdir / "min_water.mdp"),
+        "-f", str(artifacts_dir / "min_water.mdp"),
         "-c", str(wb_dir / "box_solv_expand.pdb"),
         "-o", str(wb_dir / "water_min.tpr"),
         "-p", str(wb_dir / "waterbox.top"),
@@ -127,10 +128,10 @@ def _minimize_waterbox(workdir: Path, wb_dir: Path, ntomp: int):
     ], cwd=str(wb_dir), check=True)
 
 
-def _equilibrate_waterbox(workdir: Path, wb_dir: Path, ntomp: int):
+def _equilibrate_waterbox(artifacts_dir: Path, wb_dir: Path, ntomp: int):
     subprocess.run([
         "gmx", "grompp",
-        "-f", str(workdir / "equil_water.mdp"),
+        "-f", str(artifacts_dir / "equil_water.mdp"),
         "-c", str(wb_dir / "water_min.gro"),
         "-o", str(wb_dir / "water_equil.tpr"),
         "-p", str(wb_dir / "waterbox.top"),

@@ -5,12 +5,14 @@ Corresponds to run_all.sh line:
 """
 
 import subprocess
+from pathlib import Path
 
 
 def run(ntomp: int = 26):
+    artifacts_dir = Path("artifacts")
     subprocess.run([
         "gmx", "grompp",
-        "-f", "min.mdp",
+        "-f", str(artifacts_dir / "min.mdp"),
         "-c", "md_model.pdb",
         "-o", "md_min.tpr",
         "-p", "md_model.top",

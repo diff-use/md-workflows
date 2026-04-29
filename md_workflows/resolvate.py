@@ -6,6 +6,7 @@ Corresponds to run_all.sh line:
 
 import re
 import subprocess
+from pathlib import Path
 
 
 def run(ntmpi: int = 8, ntomp: int = 1):
@@ -55,9 +56,10 @@ def _update_topology(maxsol: int):
 
 
 def _minimize(ntmpi: int, ntomp: int):
+    artifacts_dir = Path("artifacts")
     subprocess.run([
         "gmx", "grompp",
-        "-f", "min.mdp",
+        "-f", str(artifacts_dir / "min.mdp"),
         "-c", "md_resolv.pdb",
         "-o", "md_resolv_min.tpr",
         "-p", "md_model_posre.top",
@@ -73,9 +75,10 @@ def _minimize(ntmpi: int, ntomp: int):
 
 
 def _equilibrate(ntmpi: int, ntomp: int):
+    artifacts_dir = Path("artifacts")
     subprocess.run([
         "gmx", "grompp",
-        "-f", "equil.mdp",
+        "-f", str(artifacts_dir / "equil.mdp"),
         "-c", "md_resolv_min.gro",
         "-o", "md_resolv_equil.tpr",
         "-p", "md_model_posre.top",
