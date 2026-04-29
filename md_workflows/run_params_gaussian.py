@@ -7,12 +7,136 @@ Corresponds to run_all.sh lines:
   cd -
 """
 
+from __future__ import annotations
+
 import os
 import subprocess
 import textwrap
+import urllib.request
+from collections import defaultdict
 from pathlib import Path
+from typing import TypedDict
 
 
+class HeteroLigandHit(TypedDict):
+    """One unique hetero residue from a legacy PDB (HETATM block)."""
+
+    resname: str
+    chain_id: str
+    residue_seq: str
+    insertion_code: str
+    n_atoms: int
+
+
+# Water and common solvent residue names in legacy PDBs (exclude from ligand hits).
+_WATER_SOLVENT_RESNAMES = frozenset({
+    "HOH", "WAT", "SOL", "H2O", "DOD", "TIP", "TIP3", "SPC", "PE4", "P7G",
+})
+
+# Base URL for legacy-format PDB coordinate files from RCSB PDB.
+_RCSB_LEGACY_PDB_URL = "https://files.rcsb.org/download/{pdb_id}.pdb"
+
+
+def download_rcsb_legacy_pdb_and_find_ligands(
+    pdb_id: str,
+    *,
+    save_path: Path | str | None = None,
+    exclude_water_solvent: bool = True,
+) -> tuple[Path, list[HeteroLigandHit]]:
+    """Fetch legacy PDB text from RCSB, save locally, and list hetero small molecules.
+
+    Uses the same legacy PDB endpoint as browsing ``RCSB.org``: ``download/<ID>.pdb``.
+    Parses ``HETATM`` records and groups atoms by residue (chain + seq + insertion +
+    residue name). Optionally drops standard water/solvent residue codes.
+
+    Args:
+        pdb_id: Four-character PDB identifier (e.g. ``"6b8x"``, case-insensitive).
+        save_path: Where to write the file. Defaults to ``<pdb_id>_rcsb_legacy.pdb``
+            in the current directory.
+        exclude_water_solvent: If True, omit residues in ``_WATER_SOLVENT_RESNAMES``.
+
+    Returns:
+        Path to the downloaded legacy PDB file, and a sorted list of hetero summaries.
+
+    Raises:
+        urllib.error.HTTPError: If download fails (e.g. unknown PDB ID).
+        ValueError: If ``pdb_id`` is not a plausible PDB identifier.
+    """
+    nid = pdb_id.strip().lower()
+    if len(nid) != 4 or not nid.isalnum():
+        raise ValueError(f"Expected a 4-letter PDB ID, got {pdb_id!r}")
+
+    out = Path(save_path) if save_path is not None else Path(f"{nid}_rcsb_legacy.pdb")
+    url = _RCSB_LEGACY_PDB_URL.format(pdb_id=nid)
+
+    req = urllib.request.Request(url, headers={"User-Agent": "md-workflows/1.0"})
+    out.parent.mkdir(parents=True, exist_ok=True)
+    with urllib.request.urlopen(req, timeout=120) as resp:
+        body = resp.read().decode("ascii", errors="replace")
+
+    out.write_text(body, encoding="ascii")
+
+    ligands = find_ligands_in_legacy_pdb_text(
+        body,
+        exclude_water_solvent=exclude_water_solvent,
+    )
+    return out, ligands
+
+
+def find_ligands_in_legacy_pdb_text(
+    pdb_text: str,
+    *,
+    exclude_water_solvent: bool = True,
+) -> list[HeteroLigandHit]:
+    """Scan legacy PDB contents for hetero residues from ``HETATM`` records."""
+
+    counts: dict[tuple[str, str, str, str], int] = defaultdict(int)
+
+    for line in pdb_text.splitlines():
+        if not line.startswith("HETATM"):
+            continue
+        if len(line) < 27:
+            continue
+        # PDB fixed columns (legacy): resName 18–20, chain 22, seq 23–26, iCode 27.
+        resname = line[17:20].strip()
+        chain_id = line[21:22].strip() or "_"
+        residue_seq = line[22:26].strip()
+        icode = line[26:27].strip() if len(line) > 26 else ""
+
+        if exclude_water_solvent and resname.upper() in _WATER_SOLVENT_RESNAMES:
+            continue
+
+        key = (resname, chain_id, residue_seq, icode)
+        counts[key] += 1
+
+    hits: list[HeteroLigandHit] = []
+    for (resname, chain_id, residue_seq, icode), n_atoms in counts.items():
+        hits.append(
+            {
+                "resname": resname,
+                "chain_id": chain_id,
+                "residue_seq": residue_seq,
+                "insertion_code": icode,
+                "n_atoms": n_atoms,
+            }
+        )
+
+    def _sort_key(h: HeteroLigandHit) -> tuple[str, int, str, str]:
+        try:
+            snum = int(h["residue_seq"])
+        except ValueError:
+            snum = 0
+        return (h["chain_id"], snum, h["insertion_code"], h["resname"])
+
+    hits.sort(key=_sort_key)
+    return hits
+
+
+def find_ligands_in_legacy_pdb_file(path: Path | str) -> list[HeteroLigandHit]:
+    """Read a legacy PDB file from disk and list hetero residues (same rules as above)."""
+
+    text = Path(path).read_text(encoding="ascii", errors="replace")
+    return find_ligands_in_legacy_pdb_text(text)
 
 
 def _patch_gaussian_input(resn: str, nproc: int):
@@ -220,10 +344,40 @@ def _run_parameterization(resn: str, g16root: str, nproc: int):
     _build_amber_lib(resn)
 
 
-def run(resn: str = "AR6", g16root: str = "/Users/mewall/packages", nproc: int = 8):
+def run(
+    resn: str = "AR6",
+    g16root: str = "/Users/mewall/packages",
+    nproc: int = 8,
+    pdb_id: str | None = None,
+):
     base_dir = Path.cwd()
     lig_dir = base_dir / "ligand"
     lig_dir.mkdir(parents=True, exist_ok=True)
+
+    if pdb_id:
+        pdb_path, ligands = download_rcsb_legacy_pdb_and_find_ligands(
+            pdb_id,
+            save_path=lig_dir / f"{pdb_id.strip().lower()}_rcsb_legacy.pdb",
+        )
+        print(f"Downloaded legacy PDB from RCSB -> {pdb_path}")
+        if ligands:
+            print(
+                "Hetero residues from HETATM records "
+                "(common water/solvent residue names excluded): "
+                f"{len(ligands)}"
+            )
+            for h in ligands:
+                ins = h["insertion_code"] or ""
+                print(
+                    f"  {h['resname']:>4}  chain={h['chain_id']!r}  "
+                    f"resSeq={h['residue_seq']}{ins}  atoms={h['n_atoms']}"
+                )
+        else:
+            print(
+                "No HETATM residues found after filtering (structure may be polymer-only "
+                "or use only solvent codes)."
+            )
+
     os.chdir(lig_dir)
 
     try:

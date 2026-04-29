@@ -5,14 +5,14 @@ from __future__ import annotations
 import argparse
 import sys
 
-from .workflows import equilibrate
-from .workflows import make_crystal
-from .workflows import make_waterbox
-from .workflows import minimize
-from .workflows import param_prot
-from .workflows import resolvate
-from .workflows import run_params_gaussian
-from .workflows import solvate
+from . import equilibrate
+from . import make_crystal
+from . import make_waterbox
+from . import minimize
+from . import param_prot
+from . import resolvate
+from . import run_params_gaussian
+from . import solvate
 
 
 def _single_command_cli(command: str) -> None:
@@ -40,6 +40,14 @@ def _single_command_cli(command: str) -> None:
         parser.add_argument("--resn", default="AR6")
         parser.add_argument("--g16root", default="/Users/mewall/packages")
         parser.add_argument("--nproc", type=int, default=8)
+        parser.add_argument(
+            "--pdb-id",
+            default=None,
+            help=(
+                "Optional RCSB PDB ID: download legacy .pdb and list hetero ligands "
+                "before parameterization."
+            ),
+        )
     else:
         raise ValueError(f"Unknown command: {command}")
 
@@ -60,7 +68,12 @@ def _single_command_cli(command: str) -> None:
     elif command == "resolvate":
         resolvate.run(ntmpi=args.ntmpi, ntomp=args.ntomp)
     elif command == "run_params_gaussian":
-        run_params_gaussian.run(resn=args.resn, g16root=args.g16root, nproc=args.nproc)
+        run_params_gaussian.run(
+            resn=args.resn,
+            g16root=args.g16root,
+            nproc=args.nproc,
+            pdb_id=args.pdb_id,
+        )
 
 
 def param_prot_cli() -> None:

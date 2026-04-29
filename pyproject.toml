@@ -17,6 +17,7 @@ md_workflows.minimize = "md_workflows.cli:minimize_cli"
 md_workflows.equilibrate = "md_workflows.cli:equilibrate_cli"
 md_workflows.resolvate = "md_workflows.cli:resolvate_cli"
 md_workflows.run_params_gaussian = "md_workflows.cli:run_params_gaussian_cli"
+md_workflows.run_all = "md_workflows.workflows.run_all:_cli"
 
 [tool.setuptools]
-packages = ["md_workflows", "md_workflows.workflows", "workflows"]
+packages = ["md_workflows", "md_workflows.workflows"]

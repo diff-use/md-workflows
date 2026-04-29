@@ -1,1 +1,1 @@
-"""Workflow modules exposed under md_workflows.workflows."""
+"""Orchestration helpers (e.g. :mod:`md_workflows.workflows.run_all`)."""
