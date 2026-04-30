@@ -1,9 +1,9 @@
 #How the script is called: bash ../run_params_gaussian.sh
 
-#resn line sets the ligand name (AR6)
+#resn line sets the ligand name (GOL)
 #export and source lines load gaussian env
-#antechamber line converts AR6.pdb to gaussian input, AR6.gau, with net charge of "-2" and multiplicity of "1"
-resn=AR6
+#antechamber line converts GOL.pdb to gaussian input, GOL.gau, with net charge of "-2" and multiplicity of "1"
+resn=GOL
 export g16root=/Users/mewall/packages
 source /Users/mewall/packages/g16/bsd/g16.profile
 antechamber -fi pdb -fo gcrt -i ${resn}.pdb -o ${resn}.gau -nc -2 -m 1

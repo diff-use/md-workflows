@@ -37,15 +37,14 @@ def _single_command_cli(command: str) -> None:
         parser.add_argument("--ntmpi", type=int, default=8)
         parser.add_argument("--ntomp", type=int, default=1)
     elif command == "run_params_gaussian":
-        parser.add_argument("--resn", default="AR6")
         parser.add_argument("--g16root", default="/Users/mewall/packages")
         parser.add_argument("--nproc", type=int, default=8)
         parser.add_argument(
             "--pdb-id",
-            default=None,
+            required=True,
             help=(
-                "Optional RCSB PDB ID: download legacy .pdb and list hetero ligands "
-                "before parameterization."
+                "RCSB PDB ID: download legacy .pdb if missing, detect ligand resn, "
+                "and create <resn>.pdb if missing."
             ),
         )
     else:
@@ -69,7 +68,6 @@ def _single_command_cli(command: str) -> None:
         resolvate.run(ntmpi=args.ntmpi, ntomp=args.ntomp)
     elif command == "run_params_gaussian":
         run_params_gaussian.run(
-            resn=args.resn,
             g16root=args.g16root,
             nproc=args.nproc,
             pdb_id=args.pdb_id,
