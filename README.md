@@ -7,7 +7,7 @@ This project includes a `Dockerfile` and a Python CLI entry point for running th
 From the project root (where the `Dockerfile` is):
 
 ```bash
-docker build -t md-workflows:latest .
+docker pull diffuseproject/md:0.0.1 .
 ```
 
 ## 2) Start a container
@@ -16,10 +16,16 @@ Run the container interactively, mounting the current project directory so input
 
 ```bash
 docker run --rm -it \
+  --user "$(id -u):$(id -g)" \
+  --gpus all \
+  --name md_container \
+  -e HOME=/workspace \
   -v "$(pwd):/workspace" \
   -w /workspace \
-  md-workflows:latest bash
+  diffuseproject/md:0.0.1 \
+  bash
 ```
+
 
 ## 3) Install this project inside the container
 
@@ -36,13 +42,7 @@ This registers the CLI entry points from `pyproject.toml`, including `md_workflo
 Inside the container shell:
 
 ```bash
-md_workflows.run_all
-```
-
-You can also pass options:
-
-```bash
-md_workflows.run_all \
+md_workflows.mdmx \
   --param-pdb-id 6B8X \
   --ix 1 \
   --ntomp 26 \
@@ -53,5 +53,5 @@ md_workflows.run_all \
 To see all available flags:
 
 ```bash
-md_workflows.run_all --help
+md_workflows.mdmx --help
 ```

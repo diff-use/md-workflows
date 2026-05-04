@@ -9,15 +9,15 @@ description = "Molecular dynamics workflow orchestration scripts"
 requires-python = ">=3.10"
 
 [project.scripts]
-md_workflows.param_prot = "md_workflows.cli:param_prot_cli"
-md_workflows.make_crystal = "md_workflows.cli:make_crystal_cli"
-md_workflows.make_waterbox = "md_workflows.cli:make_waterbox_cli"
-md_workflows.solvate = "md_workflows.cli:solvate_cli"
-md_workflows.minimize = "md_workflows.cli:minimize_cli"
-md_workflows.equilibrate = "md_workflows.cli:equilibrate_cli"
-md_workflows.resolvate = "md_workflows.cli:resolvate_cli"
-md_workflows.run_params_gaussian = "md_workflows.cli:run_params_gaussian_cli"
-md_workflows.run_all = "md_workflows.workflows.run_all:_cli"
+"md_workflows.param_prot" = "md_workflows.cli:param_prot_cli"
+"md_workflows.make_crystal" = "md_workflows.cli:make_crystal_cli"
+"md_workflows.make_waterbox" = "md_workflows.cli:make_waterbox_cli"
+"md_workflows.solvate" = "md_workflows.cli:solvate_cli"
+"md_workflows.minimize" = "md_workflows.cli:minimize_cli"
+"md_workflows.equilibrate" = "md_workflows.cli:equilibrate_cli"
+"md_workflows.resolvate" = "md_workflows.cli:resolvate_cli"
+"md_workflows.run_params_gaussian" = "md_workflows.cli:run_params_gaussian_cli"
+"md_workflows.mdmx" = "md_workflows.workflows.mdmx:_cli"
 
 [tool.setuptools]
 packages = ["md_workflows", "md_workflows.workflows"]

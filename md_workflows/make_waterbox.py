@@ -4,7 +4,6 @@ Corresponds to run_all.sh line:
   bash scripts/make_waterbox.sh
 """
 
-import re
 import subprocess
 from pathlib import Path
 
@@ -19,7 +18,8 @@ def run(ntomp: int = 26):
     _create_box_pdb(workdir, wb_dir)
     _insert_water(workdir, wb_dir)
     _expand_waterbox(workdir, wb_dir)
-    nwat = _count_water(wb_dir)
+    # Topology must match the coordinate file passed to grompp (expanded box).
+    nwat = _count_wat_molecules(wb_dir / "box_solv_expand.pdb")
     _write_topology(workdir, wb_dir, nwat)
     _minimize_waterbox(artifacts_dir, wb_dir, ntomp)
     _equilibrate_waterbox(artifacts_dir, wb_dir, ntomp)
@@ -83,17 +83,17 @@ def _expand_waterbox(workdir: Path, wb_dir: Path):
         fh.writelines(lines)
 
 
-def _count_water(wb_dir: Path) -> int:
-    log = wb_dir / "insert-molecules.log"
-    if log.exists():
-        with open(log) as fh:
-            for line in fh:
-                m = re.search(r"Output configuration contains\s+(\d+)", line)
-                if m:
-                    return int(m.group(1)) * 1000
-
-    with open(wb_dir / "box_solv.pdb") as fh:
-        wat_atoms = sum(1 for l in fh if "WAT" in l)
+def _count_wat_molecules(pdb_path: Path) -> int:
+    """Count WAT residues assuming 3-site water (matches GROMACS WAT.pdb)."""
+    wat_atoms = 0
+    with open(pdb_path) as fh:
+        for line in fh:
+            if line.startswith(("ATOM", "HETATM")) and " WAT " in line:
+                wat_atoms += 1
+    if wat_atoms % 3 != 0:
+        raise ValueError(
+            f"{pdb_path}: expected multiple of 3 WAT atoms, got {wat_atoms}"
+        )
     return wat_atoms // 3
 
 

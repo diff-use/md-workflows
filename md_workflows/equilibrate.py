@@ -6,7 +6,6 @@ Corresponds to run_all.sh line:
 
 import glob
 import os
-import re
 import subprocess
 import tempfile
 from pathlib import Path
@@ -74,9 +73,19 @@ def _split_chains() -> list[str]:
         os.remove(f)
 
     with open("first_copy_prot.pdb") as fh:
-        content = fh.read()
+        lines = fh.readlines()
 
-    chunks = re.split(r"(?<=TER.*\n)", content)
+    # Split after each TER line (PDB chain end). Python re forbids variable-width lookbehinds
+    # like (?<=TER.*\n).
+    chunks: list[str] = []
+    buf: list[str] = []
+    for line in lines:
+        buf.append(line)
+        if line.startswith("TER"):
+            chunks.append("".join(buf))
+            buf = []
+    if buf:
+        chunks.append("".join(buf))
     chunks = [c for c in chunks if c.strip()]
 
     files = []

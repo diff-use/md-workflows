@@ -1,7 +1,6 @@
 #How the script is called: bash scripts/equilibrate.sh
 
 #set up restraints
-
 #awk line extracts the first copy of the asymmetric unit from pdb_clean.pdb. It reads lines until it hits a GOL (glycerol) residue, includes that line, then stops at the next atom. This isolates copy 1
 #grep line Keeps only ATOM/HETATM/TER, removes any GOL lines -> first_copy_prot.pdb
 #rm and csplit lines splits the protein at every TER record into files part00, part01, etc. (one per chain).
@@ -20,20 +19,20 @@ q
 EOF
 done
 
-#Guarded by if [ -e skip ] — effectively disabled unless a file called skip exists. Would extract AR6 ligand atoms, create 
-#a custom index group for non-hydrogen ligand atoms (AR6-H), and generate restraints for them.
+#Guarded by if [ -e skip ] — effectively disabled unless a file called skip exists. Would extract GOL ligand atoms, create 
+#a custom index group for non-hydrogen ligand atoms (GOL-H), and generate restraints for them.
 if [ -e skip ]; then
 np=$( ls -1 part?? | wc -l)
 f=$( printf "part%02d" $np )
-grep -e ATOM -e HETATM first_copy.pdb | grep AR6 > $f
+grep -e ATOM -e HETATM first_copy.pdb | grep GOL > $f
 pdb4amber -i $f -o ${f}_amber.pdb
 gmx make_ndx -f ${f}_amber.pdb -o ${f}_amber.ndx <<EOF
 ! a H*
-name 3 AR6-H
+name 3 GOL-H
 q
 EOF
 gmx genrestr -fc 209.2 209.2 209.2 -f ${f}_amber.pdb -o posre_$f.itp -n ${f}_amber.ndx<<EOF
-AR6-H
+GOL-H
 q
 EOF
 fi

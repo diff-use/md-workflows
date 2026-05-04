@@ -7,6 +7,7 @@ Corresponds to run_all.sh line:
 import subprocess
 import textwrap
 from pathlib import Path
+from .pdb_file_processing import ensure_entry_pdb_file
 
 
 def run(pdb_id: str = "6B8X"):
@@ -20,7 +21,7 @@ def run(pdb_id: str = "6B8X"):
 
 def _clean_pdb(pdb_id: str):
     """Strip REMARK/KEYWDS, keep CRYST1/ATOM/HETATM/TER/END lines."""
-    pdb_file = f"{pdb_id}.pdb"
+    pdb_file = str(ensure_entry_pdb_file(pdb_id, Path.cwd()))
     with open(pdb_file) as fh:
         lines = fh.readlines()
 

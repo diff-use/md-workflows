@@ -46,12 +46,23 @@ def _count_copies() -> int:
 
 
 def _solvate_crystal():
-    subprocess.run([
-        "gmx", "solvate",
-        "-cp", "xtal.pdb",
-        "-cs", "waterbox/water_equil.gro",
-        "-o", "xtal_solv.pdb",
-    ], capture_output=True, text=True, check=True)
+    # Match scripts/solvate.sh: >& gmx_solvate.log so _read_solvate_nwat() can parse it.
+    with open("gmx_solvate.log", "w") as log_fh:
+        subprocess.run(
+            [
+                "gmx",
+                "solvate",
+                "-cp",
+                "xtal.pdb",
+                "-cs",
+                "waterbox/water_equil.gro",
+                "-o",
+                "xtal_solv.pdb",
+            ],
+            stdout=log_fh,
+            stderr=subprocess.STDOUT,
+            check=True,
+        )
 
 
 def _read_solvate_nwat() -> int:

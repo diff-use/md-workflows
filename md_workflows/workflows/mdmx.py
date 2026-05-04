@@ -24,7 +24,6 @@ from ..make_waterbox import run as run_make_waterbox
 from ..minimize import run as run_minimize
 from ..param_prot import run as run_param_prot
 from ..resolvate import run as run_resolvate
-from ..run_params_gaussian import run as run_run_params_gaussian
 from ..solvate import run as run_solvate
 
 
@@ -35,20 +34,11 @@ def main(
     crystal_ix: int = 1,
     crystal_iy: int | None = None,
     crystal_iz: int | None = None,
-    chimerax_exec: str = "chimerax",
-    g16root: str = "/Users/mewall/packages",
-    gaussian_nproc: int = 8,
-    gaussian_pdb_id: str = "6B8X",
+    chimerax_exec: str = "/usr/bin/chimerax-daily",
     resolv_ntmpi: int = 8,
     resolv_ntomp: int = 1,
 ) -> None:
     """Execute workflow stages in ``run_all.sh`` order."""
-
-    run_run_params_gaussian(
-        g16root=g16root,
-        nproc=gaussian_nproc,
-        pdb_id=gaussian_pdb_id,
-    )
     run_param_prot(pdb_id=param_pdb_id)
     run_make_crystal(ix=crystal_ix, iy=crystal_iy, iz=crystal_iz, chimerax_exec=chimerax_exec)
     run_make_waterbox(ntomp=ntomp)
@@ -74,15 +64,7 @@ def _cli() -> None:
     parser.add_argument("--ix", type=int, default=1, help="make_crystal supercell replication (x; also y/z if omitted)")
     parser.add_argument("--iy", type=int, default=None, help="make_crystal y replication (optional)")
     parser.add_argument("--iz", type=int, default=None, help="make_crystal z replication (optional)")
-    parser.add_argument("--chimerax-exec", default="chimerax", help="ChimeraX executable for make_crystal")
-
-    parser.add_argument("--g16root", default="/Users/mewall/packages", help="Gaussian install root")
-    parser.add_argument("--gaussian-nproc", type=int, default=8, help="Threads for Gaussian steps")
-    parser.add_argument(
-        "--gaussian-pdb-id",
-        default="6B8X",
-        help="Optional RCSB PDB ID: fetch legacy PDB and list hetero residues before Gaussian",
-    )
+    parser.add_argument("--chimerax-exec", default="/usr/bin/chimerax-daily", help="ChimeraX executable for make_crystal")
 
     parser.add_argument("--resolv-ntmpi", type=int, default=8, help="resolvate gmx mdrun -ntmpi")
     parser.add_argument("--resolv-ntomp", type=int, default=1, help="resolvate gmx mdrun -ntomp")
@@ -95,9 +77,6 @@ def _cli() -> None:
         crystal_iy=args.iy,
         crystal_iz=args.iz,
         chimerax_exec=args.chimerax_exec,
-        g16root=args.g16root,
-        gaussian_nproc=args.gaussian_nproc,
-        gaussian_pdb_id=args.gaussian_pdb_id,
         resolv_ntmpi=args.resolv_ntmpi,
         resolv_ntomp=args.resolv_ntomp,
     )

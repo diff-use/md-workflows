@@ -17,7 +17,9 @@ RUN curl -L micro.mamba.pm/install.sh -o /tmp/micromamba_install.sh \
     && printf '\n\n\n\n' | bash /tmp/micromamba_install.sh \
     && rm /tmp/micromamba_install.sh
 
-ENV MAMBA_ROOT_PREFIX=/root/micromamba
+# Install envs under /opt so copied shebangs (#!/opt/micromamba/...) match the final image layout.
+RUN mkdir -p /opt/micromamba
+ENV MAMBA_ROOT_PREFIX=/opt/micromamba
 ENV MAMBA_EXE=/root/.local/bin/micromamba
 ENV PATH="/root/.local/bin:${PATH}"
 
@@ -59,7 +61,7 @@ YAML
 
 RUN $MAMBA_EXE create -y -f /tmp/lunus.yaml && rm /tmp/lunus.yaml
 
-ARG MAMBA_ENV=/root/micromamba/envs/lunus
+ARG MAMBA_ENV=/opt/micromamba/envs/lunus
 ENV PATH="${MAMBA_ENV}/bin:${PATH}"
 ENV CONDA_PREFIX="${MAMBA_ENV}"
 
@@ -91,8 +93,8 @@ RUN mkdir -p /root/packages \
 # ---------- cleanup: remove build-only packages + caches ----------
 RUN $MAMBA_EXE remove -n lunus -y scons cmake \
     && $MAMBA_EXE clean -afy \
-    && find /root/micromamba -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null; \
-    find /root/micromamba -name "*.pyc" -delete 2>/dev/null; \
+    && find /opt/micromamba -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null; \
+    find /opt/micromamba -name "*.pyc" -delete 2>/dev/null; \
     rm -rf /root/packages/lunus/.git; \
     true
 
@@ -121,7 +123,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # ---------- bashrc (inline of bashrc_new) ----------
-RUN cat > /root/.bashrc <<'BASHRC'
+RUN cat > /etc/skel/.bashrc <<'BASHRC'
 # If not running interactively, don't do anything
 #case $- in
 #    *i*) ;;
@@ -195,16 +197,30 @@ eval "$(micromamba shell hook --shell bash)"
 BASHRC
 
 # ---------- copy artifacts from builder ----------
-COPY --from=builder /root/.local/bin/micromamba /root/.local/bin/micromamba
-COPY --from=builder /root/micromamba /root/micromamba
+COPY --from=builder /root/.local/bin/micromamba /opt/micromamba/bin/micromamba
+COPY --from=builder /opt/micromamba /opt/micromamba
 COPY --from=builder /usr/local/gromacs /usr/local/gromacs
-COPY --from=builder /root/packages /root/packages
+COPY --from=builder /root/packages /opt/packages
 
-ENV MAMBA_ROOT_PREFIX=/root/micromamba
-ENV MAMBA_EXE=/root/.local/bin/micromamba
-ENV PATH="/root/.local/bin:/root/micromamba/envs/lunus/bin:/usr/local/gromacs/bin:${PATH}"
-ENV CONDA_PREFIX=/root/micromamba/envs/lunus
+# Ship md-workflows in the lunus env so Hub users need not pip install / extend PATH.
+COPY pyproject.toml /opt/md-workflows/pyproject.toml
+COPY md_workflows /opt/md-workflows/md_workflows
+RUN /opt/micromamba/envs/lunus/bin/python -m pip install --no-cache-dir /opt/md-workflows
 
-WORKDIR /root
+ENV MAMBA_ROOT_PREFIX=/opt/micromamba
+ENV MAMBA_EXE=/opt/micromamba/bin/micromamba
+ENV PATH="/opt/micromamba/bin:/opt/micromamba/envs/lunus/bin:/usr/local/gromacs/bin:${PATH}"
+ENV CONDA_PREFIX=/opt/micromamba/envs/lunus
+ENV HOME=/home/mduser
+
+ARG UID=1000
+ARG GID=1000
+RUN groupadd -g "${GID}" mduser \
+    && useradd -m -u "${UID}" -g "${GID}" -s /bin/bash mduser \
+    && mkdir -p /workspace \
+    && chown -R mduser:mduser /home/mduser /workspace /opt/micromamba /opt/packages /opt/md-workflows
+
+USER mduser
+WORKDIR /workspace
 SHELL ["/bin/bash", "-c"]
 CMD ["bash"]

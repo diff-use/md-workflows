@@ -14,7 +14,7 @@ def run(
     ix: int = 1,
     iy: int | None = None,
     iz: int | None = None,
-    chimerax_exec: str = "chimerax",
+    chimerax_exec: str = "/usr/bin/chimerax-daily",
 ):
     """
     Args:
@@ -74,7 +74,7 @@ quit
 """
     with open("expand.cxc", "w") as fh:
         fh.write(cxc_script)
-    subprocess.run([chimerax_exec, "--nogui", "expand.cxc"], check=True)
+    subprocess.run([chimerax_exec, "--offscreen", "--nogui", "expand.cxc"], check=True)
 
 
 def _set_p1_spacegroup(dry_pdb: str, cell_pdb: str):

@@ -39,14 +39,6 @@ def _single_command_cli(command: str) -> None:
     elif command == "run_params_gaussian":
         parser.add_argument("--g16root", default="/Users/mewall/packages")
         parser.add_argument("--nproc", type=int, default=8)
-        parser.add_argument(
-            "--pdb-id",
-            required=True,
-            help=(
-                "RCSB PDB ID: download legacy .pdb if missing, detect ligand resn, "
-                "and create <resn>.pdb if missing."
-            ),
-        )
     else:
         raise ValueError(f"Unknown command: {command}")
 
@@ -70,7 +62,6 @@ def _single_command_cli(command: str) -> None:
         run_params_gaussian.run(
             g16root=args.g16root,
             nproc=args.nproc,
-            pdb_id=args.pdb_id,
         )
 
 
