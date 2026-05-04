@@ -26,18 +26,9 @@ docker run --rm -it \
   bash
 ```
 
-
-## 3) Install this project inside the container
-
-Inside the container shell:
-
-```bash
-python -m pip install -e .
-```
-
 This registers the CLI entry points from `pyproject.toml`, including `md_workflows.run_all`.
 
-## 4) Run the full workflow command
+## 3) Run the full workflow command
 
 Inside the container shell:
 
