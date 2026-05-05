@@ -32,6 +32,7 @@ dependencies:
   - python =3.10
   - ambertools =24.8
   - dials
+  - cctbx-base
   - nexusformat =2.0.2
   - pandas =2.2.3
   - scipy =1.14.1
