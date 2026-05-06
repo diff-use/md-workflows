@@ -58,6 +58,7 @@ dependencies:
   - cmake =3.31.2
   - awscli
   - gnuplot =5.4.10
+  - gemmi
 YAML
 
 RUN $MAMBA_EXE create -y -f /tmp/lunus.yaml && rm /tmp/lunus.yaml
@@ -104,23 +105,13 @@ FROM ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-ARG CHIMERAX_URL="https://www.cgl.ucsf.edu/chimerax/cgi-bin/secure/chimerax-get.py?file=current/ubuntu-22.04/chimerax-daily.deb"
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates \
         coreutils \
         rsync \
         bc \
         bzip2 \
-        curl \
         libgomp1 \
-    && curl -s -c /tmp/cx_cookies -d "choice=Accept" "${CHIMERAX_URL}" \
-       | grep -oP 'url=\K[^"]*' > /tmp/cx_redirect \
-    && curl -s -b /tmp/cx_cookies -o /tmp/chimerax.deb \
-       "https://www.cgl.ucsf.edu$(cat /tmp/cx_redirect)" \
-    && apt-get install -y /tmp/chimerax.deb \
-    && rm -f /tmp/chimerax.deb /tmp/cx_cookies /tmp/cx_redirect \
-    && apt-get purge -y curl \
-    && apt-get autoremove -y \
     && rm -rf /var/lib/apt/lists/*
 
 # ---------- bashrc (inline of bashrc_new) ----------
