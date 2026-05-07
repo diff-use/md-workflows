@@ -34,13 +34,12 @@ def main(
     crystal_ix: int = 1,
     crystal_iy: int | None = None,
     crystal_iz: int | None = None,
-    chimerax_exec: str = "/usr/bin/chimerax-daily",
     resolv_ntmpi: int = 8,
     resolv_ntomp: int = 1,
 ) -> None:
     """Execute workflow stages in ``run_all.sh`` order."""
     run_param_prot(pdb_id=param_pdb_id)
-    run_make_crystal(ix=crystal_ix, iy=crystal_iy, iz=crystal_iz, chimerax_exec=chimerax_exec)
+    run_make_crystal(ix=crystal_ix, iy=crystal_iy, iz=crystal_iz)
     run_make_waterbox(ntomp=ntomp)
     run_solvate()
     run_minimize(ntomp=ntomp)
@@ -64,8 +63,6 @@ def _cli() -> None:
     parser.add_argument("--ix", type=int, default=1, help="make_crystal supercell replication (x; also y/z if omitted)")
     parser.add_argument("--iy", type=int, default=None, help="make_crystal y replication (optional)")
     parser.add_argument("--iz", type=int, default=None, help="make_crystal z replication (optional)")
-    parser.add_argument("--chimerax-exec", default="/usr/bin/chimerax-daily", help="ChimeraX executable for make_crystal")
-
     parser.add_argument("--resolv-ntmpi", type=int, default=8, help="resolvate gmx mdrun -ntmpi")
     parser.add_argument("--resolv-ntomp", type=int, default=1, help="resolvate gmx mdrun -ntomp")
 
@@ -76,7 +73,6 @@ def _cli() -> None:
         crystal_ix=args.ix,
         crystal_iy=args.iy,
         crystal_iz=args.iz,
-        chimerax_exec=args.chimerax_exec,
         resolv_ntmpi=args.resolv_ntmpi,
         resolv_ntomp=args.resolv_ntomp,
     )

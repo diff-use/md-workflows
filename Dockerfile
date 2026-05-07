@@ -58,7 +58,7 @@ dependencies:
   - cmake =3.31.2
   - awscli
   - gnuplot =5.4.10
-  - gemmi
+  - gemmi =0.7.4
 YAML
 
 RUN $MAMBA_EXE create -y -f /tmp/lunus.yaml && rm /tmp/lunus.yaml

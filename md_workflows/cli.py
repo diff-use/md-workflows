@@ -24,7 +24,6 @@ def _single_command_cli(command: str) -> None:
         parser.add_argument("--ix", type=int, default=1)
         parser.add_argument("--iy", type=int, default=None)
         parser.add_argument("--iz", type=int, default=None)
-        parser.add_argument("--chimerax-exec", default="chimerax")
     elif command == "make_waterbox":
         parser.add_argument("--ntomp", type=int, default=26)
     elif command == "solvate":
@@ -47,7 +46,7 @@ def _single_command_cli(command: str) -> None:
     if command == "param_prot":
         param_prot.run(pdb_id=args.pdb_id)
     elif command == "make_crystal":
-        make_crystal.run(ix=args.ix, iy=args.iy, iz=args.iz, chimerax_exec=args.chimerax_exec)
+        make_crystal.run(ix=args.ix, iy=args.iy, iz=args.iz)
     elif command == "make_waterbox":
         make_waterbox.run(ntomp=args.ntomp)
     elif command == "solvate":
