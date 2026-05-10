@@ -7,7 +7,7 @@ This project includes a `Dockerfile` and a Python CLI entry point for running th
 From the project root (where the `Dockerfile` is):
 
 ```bash
-docker pull diffuseproject/md:0.0.1 .
+docker pull diffuseproject/md:0.0.1
 ```
 
 ## 2) Start a container
