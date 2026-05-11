@@ -7,12 +7,12 @@ Corresponds to run_all.sh line:
 import glob
 import os
 import subprocess
-import tempfile
 from pathlib import Path
 
 
-def run(ntomp: int = 26):
+def run(ntomp: int = 26, equil_mdp: str | None = None):
     artifacts_dir = Path("artifacts")
+    mdp_file = equil_mdp if equil_mdp else str(artifacts_dir / "equil.mdp")
     _extract_first_copy()
     chain_files = _split_chains()
     _generate_restraints(chain_files)
@@ -20,7 +20,7 @@ def run(ntomp: int = 26):
 
     subprocess.run([
         "gmx", "grompp",
-        "-f", str(artifacts_dir / "equil.mdp"),
+        "-f", mdp_file,
         "-c", "md_min.gro",
         "-o", "md_equil.tpr",
         "-p", "md_model_posre.top",

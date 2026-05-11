@@ -8,11 +8,12 @@ import subprocess
 from pathlib import Path
 
 
-def run(ntomp: int = 26):
+def run(ntomp: int = 26, min_mdp: str | None = None):
     artifacts_dir = Path("artifacts")
+    mdp_file = min_mdp if min_mdp else str(artifacts_dir / "min.mdp")
     subprocess.run([
         "gmx", "grompp",
-        "-f", str(artifacts_dir / "min.mdp"),
+        "-f", mdp_file,
         "-c", "md_model.pdb",
         "-o", "md_min.tpr",
         "-p", "md_model.top",

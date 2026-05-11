@@ -37,14 +37,18 @@ def main(
     chimerax_exec: str = "/usr/bin/chimerax-daily",
     resolv_ntmpi: int = 8,
     resolv_ntomp: int = 1,
+    min_mdp: str = "artifacts/min.mdp",
+    min_water_mdp: str = "artifacts/min_water.mdp",
+    equil_mdp: str = "artifacts/equil.mdp",
+    equil_water_mdp: str = "artifacts/equil_water.mdp",
 ) -> None:
     """Execute workflow stages in ``run_all.sh`` order."""
     run_param_prot(pdb_id=param_pdb_id)
     run_make_crystal(ix=crystal_ix, iy=crystal_iy, iz=crystal_iz, chimerax_exec=chimerax_exec)
-    run_make_waterbox(ntomp=ntomp)
+    run_make_waterbox(ntomp=ntomp, min_water_mdp=min_water_mdp, equil_water_mdp=equil_water_mdp)
     run_solvate()
-    run_minimize(ntomp=ntomp)
-    run_equilibrate(ntomp=ntomp)
+    run_minimize(ntomp=ntomp, min_mdp=min_mdp)
+    run_equilibrate(ntomp=ntomp, equil_mdp=equil_mdp)
     run_resolvate(ntmpi=resolv_ntmpi, ntomp=resolv_ntomp)
 
 
@@ -69,6 +73,11 @@ def _cli() -> None:
     parser.add_argument("--resolv-ntmpi", type=int, default=8, help="resolvate gmx mdrun -ntmpi")
     parser.add_argument("--resolv-ntomp", type=int, default=1, help="resolvate gmx mdrun -ntomp")
 
+    parser.add_argument("--min", dest="min_mdp", default="artifacts/min.mdp", help="Path to min.mdp file for minimize step")
+    parser.add_argument("--min-water", dest="min_water_mdp", default="artifacts/min_water.mdp", help="Path to min_water.mdp file for waterbox minimize step")
+    parser.add_argument("--equil", dest="equil_mdp", default="artifacts/equil.mdp", help="Path to equil.mdp file for equilibrate step")
+    parser.add_argument("--equil-water", dest="equil_water_mdp", default="artifacts/equil_water.mdp", help="Path to equil_water.mdp file for waterbox equilibrate step")
+
     args = parser.parse_args()
     main(
         ntomp=args.ntomp,
@@ -79,6 +88,10 @@ def _cli() -> None:
         chimerax_exec=args.chimerax_exec,
         resolv_ntmpi=args.resolv_ntmpi,
         resolv_ntomp=args.resolv_ntomp,
+        min_mdp=args.min_mdp,
+        min_water_mdp=args.min_water_mdp,
+        equil_mdp=args.equil_mdp,
+        equil_water_mdp=args.equil_water_mdp,
     )
 
 

@@ -27,12 +27,16 @@ def _single_command_cli(command: str) -> None:
         parser.add_argument("--chimerax-exec", default="chimerax")
     elif command == "make_waterbox":
         parser.add_argument("--ntomp", type=int, default=26)
+        parser.add_argument("--min-water", dest="min_water_mdp", default="artifacts/min_water.mdp", help="Path to min_water.mdp file")
+        parser.add_argument("--equil-water", dest="equil_water_mdp", default="artifacts/equil_water.mdp", help="Path to equil_water.mdp file")
     elif command == "solvate":
         pass
     elif command == "minimize":
         parser.add_argument("--ntomp", type=int, default=26)
+        parser.add_argument("--min", dest="min_mdp", default="artifacts/min.mdp", help="Path to min.mdp file")
     elif command == "equilibrate":
         parser.add_argument("--ntomp", type=int, default=26)
+        parser.add_argument("--equil", dest="equil_mdp", default="artifacts/equil.mdp", help="Path to equil.mdp file")
     elif command == "resolvate":
         parser.add_argument("--ntmpi", type=int, default=8)
         parser.add_argument("--ntomp", type=int, default=1)
@@ -49,13 +53,13 @@ def _single_command_cli(command: str) -> None:
     elif command == "make_crystal":
         make_crystal.run(ix=args.ix, iy=args.iy, iz=args.iz, chimerax_exec=args.chimerax_exec)
     elif command == "make_waterbox":
-        make_waterbox.run(ntomp=args.ntomp)
+        make_waterbox.run(ntomp=args.ntomp, min_water_mdp=args.min_water_mdp, equil_water_mdp=args.equil_water_mdp)
     elif command == "solvate":
         solvate.run()
     elif command == "minimize":
-        minimize.run(ntomp=args.ntomp)
+        minimize.run(ntomp=args.ntomp, min_mdp=args.min_mdp)
     elif command == "equilibrate":
-        equilibrate.run(ntomp=args.ntomp)
+        equilibrate.run(ntomp=args.ntomp, equil_mdp=args.equil_mdp)
     elif command == "resolvate":
         resolvate.run(ntmpi=args.ntmpi, ntomp=args.ntomp)
     elif command == "run_params_gaussian":

@@ -8,7 +8,7 @@ import subprocess
 from pathlib import Path
 
 
-def run(ntomp: int = 26):
+def run(ntomp: int = 26, min_water_mdp: str | None = None, equil_water_mdp: str | None = None):
     workdir = Path.cwd()
     artifacts_dir = workdir / "artifacts"
     wb_dir = workdir / "waterbox"
@@ -21,8 +21,8 @@ def run(ntomp: int = 26):
     # Topology must match the coordinate file passed to grompp (expanded box).
     nwat = _count_wat_molecules(wb_dir / "box_solv_expand.pdb")
     _write_topology(workdir, wb_dir, nwat)
-    _minimize_waterbox(artifacts_dir, wb_dir, ntomp)
-    _equilibrate_waterbox(artifacts_dir, wb_dir, ntomp)
+    _minimize_waterbox(artifacts_dir, wb_dir, ntomp, min_water_mdp)
+    _equilibrate_waterbox(artifacts_dir, wb_dir, ntomp, equil_water_mdp)
 
 
 def _extract_cryst1(workdir: Path, wb_dir: Path):
@@ -112,10 +112,11 @@ def _write_topology(workdir: Path, wb_dir: Path, nwat: int):
         fh.write(f"WAT              {nwat}\n")
 
 
-def _minimize_waterbox(artifacts_dir: Path, wb_dir: Path, ntomp: int):
+def _minimize_waterbox(artifacts_dir: Path, wb_dir: Path, ntomp: int, min_water_mdp: str | None = None):
+    mdp_file = min_water_mdp if min_water_mdp else str(artifacts_dir / "min_water.mdp")
     subprocess.run([
         "gmx", "grompp",
-        "-f", str(artifacts_dir / "min_water.mdp"),
+        "-f", mdp_file,
         "-c", str(wb_dir / "box_solv_expand.pdb"),
         "-o", str(wb_dir / "water_min.tpr"),
         "-p", str(wb_dir / "waterbox.top"),
@@ -128,10 +129,11 @@ def _minimize_waterbox(artifacts_dir: Path, wb_dir: Path, ntomp: int):
     ], cwd=str(wb_dir), check=True)
 
 
-def _equilibrate_waterbox(artifacts_dir: Path, wb_dir: Path, ntomp: int):
+def _equilibrate_waterbox(artifacts_dir: Path, wb_dir: Path, ntomp: int, equil_water_mdp: str | None = None):
+    mdp_file = equil_water_mdp if equil_water_mdp else str(artifacts_dir / "equil_water.mdp")
     subprocess.run([
         "gmx", "grompp",
-        "-f", str(artifacts_dir / "equil_water.mdp"),
+        "-f", mdp_file,
         "-c", str(wb_dir / "water_min.gro"),
         "-o", str(wb_dir / "water_equil.tpr"),
         "-p", str(wb_dir / "waterbox.top"),
