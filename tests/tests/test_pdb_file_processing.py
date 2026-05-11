@@ -41,6 +41,15 @@ HETATM  201  C2  NAG B 301      21.000  31.000  41.000  1.00 35.00           C
 END
 """
 
+SAMPLE_PDB_SINGLE_LIGAND = """HEADER    TEST STRUCTURE
+ATOM      1  N   ALA A   1      10.000  20.000  30.000  1.00 50.00           N
+HETATM  100  C1  GOL A 201      15.000  25.000  35.000  1.00 30.00           C
+HETATM  101  C2  GOL A 201      16.000  26.000  36.000  1.00 30.00           C
+HETATM  102  C3  GOL A 201      17.000  27.000  37.000  1.00 30.00           C
+HETATM  200  O   HOH A 301      20.000  30.000  40.000  1.00 20.00           O
+END
+"""
+
 
 class TestFindLigandsInLegacyPdbText(unittest.TestCase):
     """Test the find_ligands_in_legacy_pdb_text function."""
@@ -282,11 +291,15 @@ class TestPreparePdbAndResnFiles(unittest.TestCase):
             # Mock download to return single ligand
             mock_pdb_path = lig_dir / "6b8x_rcsb_legacy.pdb"
             mock_ligands = [{"resname": "GOL", "chain_id": "A", "residue_seq": "201", "insertion_code": "", "n_atoms": 3}]
-            mock_download.return_value = (mock_pdb_path, mock_ligands)
             
-            # Create the file so Path.exists() works
-            mock_pdb_path.write_text(SAMPLE_PDB_CONTENT)
+            # Mock download creates the file
+            def mock_download_side_effect(pdb_id, save_path):
+                save_path.write_text(SAMPLE_PDB_SINGLE_LIGAND)
+                return (save_path, mock_ligands)
             
+            mock_download.side_effect = mock_download_side_effect
+            
+            # Don't create the file beforehand - let the mock create it
             resn, pdb_path = pdb_file_processing.prepare_pdb_and_resn_files(lig_dir, "6B8X")
             
             self.assertEqual(resn, "GOL")
@@ -298,7 +311,8 @@ class TestPreparePdbAndResnFiles(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             lig_dir = Path(tmpdir)
             pdb_path = lig_dir / "6b8x_rcsb_legacy.pdb"
-            pdb_path.write_text(SAMPLE_PDB_CONTENT)
+            # Use single ligand PDB content
+            pdb_path.write_text(SAMPLE_PDB_SINGLE_LIGAND)
             
             with patch("md_workflows.pdb_file_processing.download_rcsb_legacy_pdb_and_find_ligands") as mock_download:
                 resn, returned_path = pdb_file_processing.prepare_pdb_and_resn_files(lig_dir, "6B8X")
