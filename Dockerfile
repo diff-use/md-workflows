@@ -1,3 +1,4 @@
+# Docker Hub image tag: diffuseproject/md:0.0.2
 # ==================== BUILDER ====================
 FROM ubuntu:22.04 AS builder
 
