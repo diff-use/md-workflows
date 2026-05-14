@@ -1,15 +1,21 @@
 """Run the MD pipeline in the order defined by ``scripts/run_all.sh``.
 
-Matches the current shell script:
+All protein/crystal/solvation inputs and outputs use the per-run directory
+``{project_root}/{PDB}/{PDB}_{timestamp}/`` created by ``param_prot``. MDP
+templates are read only from ``{project_root}/artifacts/`` at the project root
+(not inside the run directory). The entry coordinate file is downloaded from
+RCSB into the run directory (or copied from ``{project_root}/{PDB}.pdb`` when
+present).
 
-1. ``run_params_gaussian`` (under ``ligand/``, same as ``cd ligand && bash ../run_params_gaussian.sh``)
-2. ``param_prot``
-3. ``make_crystal``
-4. ``make_waterbox``
-5. ``solvate``
-6. ``minimize``
-7. ``equilibrate``
-8. ``resolvate``
+Pipeline stages:
+
+1. ``param_prot``
+2. ``make_crystal``
+3. ``make_waterbox``
+4. ``solvate``
+5. ``minimize``
+6. ``equilibrate``
+7. ``resolvate``
 
 Adjust defaults via CLI flags below.
 """
@@ -17,6 +23,7 @@ Adjust defaults via CLI flags below.
 from __future__ import annotations
 
 import argparse
+from pathlib import Path
 
 from ..equilibrate import run as run_equilibrate
 from ..make_crystal import run as run_make_crystal
@@ -34,22 +41,33 @@ def main(
     crystal_ix: int = 1,
     crystal_iy: int | None = None,
     crystal_iz: int | None = None,
-    chimerax_exec: str = "/usr/bin/chimerax-daily",
     resolv_ntmpi: int = 8,
     resolv_ntomp: int = 1,
-    min_mdp: str = "artifacts/min.mdp",
-    min_water_mdp: str = "artifacts/min_water.mdp",
-    equil_mdp: str = "artifacts/equil.mdp",
-    equil_water_mdp: str = "artifacts/equil_water.mdp",
-) -> None:
-    """Execute workflow stages in ``run_all.sh`` order."""
-    run_param_prot(pdb_id=param_pdb_id)
-    run_make_crystal(ix=crystal_ix, iy=crystal_iy, iz=crystal_iz, chimerax_exec=chimerax_exec)
-    run_make_waterbox(ntomp=ntomp, min_water_mdp=min_water_mdp, equil_water_mdp=equil_water_mdp)
-    run_solvate()
-    run_minimize(ntomp=ntomp, min_mdp=min_mdp)
-    run_equilibrate(ntomp=ntomp, equil_mdp=equil_mdp)
-    run_resolvate(ntmpi=resolv_ntmpi, ntomp=resolv_ntomp)
+    project_root: Path | None = None,
+) -> Path:
+    """Execute workflow stages in ``run_all.sh`` order.
+
+    Returns the per-run directory ``{project_root}/{PDB}/{PDB}_{timestamp}/``
+    where all pipeline outputs are written.
+    """
+    root = (project_root or Path.cwd()).resolve()
+    artifacts_dir = root / "artifacts"
+    work_dir = run_param_prot(pdb_id=param_pdb_id, project_root=root)
+    run_make_crystal(ix=crystal_ix, iy=crystal_iy, iz=crystal_iz, work_dir=work_dir)
+    run_make_waterbox(
+        ntomp=ntomp, work_dir=work_dir, artifacts_dir=artifacts_dir, project_root=root
+    )
+    run_solvate(work_dir=work_dir)
+    run_minimize(ntomp=ntomp, work_dir=work_dir, artifacts_dir=artifacts_dir, project_root=root)
+    run_equilibrate(ntomp=ntomp, work_dir=work_dir, artifacts_dir=artifacts_dir, project_root=root)
+    run_resolvate(
+        ntmpi=resolv_ntmpi,
+        ntomp=resolv_ntomp,
+        work_dir=work_dir,
+        artifacts_dir=artifacts_dir,
+        project_root=root,
+    )
+    return work_dir
 
 
 def _cli() -> None:
@@ -63,36 +81,32 @@ def _cli() -> None:
     parser.add_argument(
         "--param-pdb-id",
         default="6B8X",
-        help="PDB ID passed to param_prot (Coordinates file should be <ID>.pdb in cwd)",
+        help="PDB ID passed to param_prot (Coordinates file should be <ID>.pdb in project root)",
     )
     parser.add_argument("--ix", type=int, default=1, help="make_crystal supercell replication (x; also y/z if omitted)")
     parser.add_argument("--iy", type=int, default=None, help="make_crystal y replication (optional)")
     parser.add_argument("--iz", type=int, default=None, help="make_crystal z replication (optional)")
-    parser.add_argument("--chimerax-exec", default="/usr/bin/chimerax-daily", help="ChimeraX executable for make_crystal")
-
     parser.add_argument("--resolv-ntmpi", type=int, default=8, help="resolvate gmx mdrun -ntmpi")
     parser.add_argument("--resolv-ntomp", type=int, default=1, help="resolvate gmx mdrun -ntomp")
-
-    parser.add_argument("--min", dest="min_mdp", default="artifacts/min.mdp", help="Path to min.mdp file for minimize step")
-    parser.add_argument("--min-water", dest="min_water_mdp", default="artifacts/min_water.mdp", help="Path to min_water.mdp file for waterbox minimize step")
-    parser.add_argument("--equil", dest="equil_mdp", default="artifacts/equil.mdp", help="Path to equil.mdp file for equilibrate step")
-    parser.add_argument("--equil-water", dest="equil_water_mdp", default="artifacts/equil_water.mdp", help="Path to equil_water.mdp file for waterbox equilibrate step")
+    parser.add_argument(
+        "--project-root",
+        type=Path,
+        default=None,
+        help="Project root (directory containing artifacts/ and optional <PDB>.pdb); default cwd",
+    )
 
     args = parser.parse_args()
-    main(
+    wd = main(
         ntomp=args.ntomp,
         param_pdb_id=args.param_pdb_id,
         crystal_ix=args.ix,
         crystal_iy=args.iy,
         crystal_iz=args.iz,
-        chimerax_exec=args.chimerax_exec,
         resolv_ntmpi=args.resolv_ntmpi,
         resolv_ntomp=args.resolv_ntomp,
-        min_mdp=args.min_mdp,
-        min_water_mdp=args.min_water_mdp,
-        equil_mdp=args.equil_mdp,
-        equil_water_mdp=args.equil_water_mdp,
+        project_root=args.project_root,
     )
+    print(f"Pipeline outputs: {wd}")
 
 
 if __name__ == "__main__":

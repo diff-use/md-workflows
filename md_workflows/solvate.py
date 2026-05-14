@@ -4,38 +4,43 @@ Corresponds to run_all.sh line:
   bash scripts/solvate.sh
 """
 
+from __future__ import annotations
+
 import re
+import shutil
 import subprocess
 from pathlib import Path
 
 
-def run():
-    ncopies = _count_copies()
-    _solvate_crystal()
-    nwat_initial = _read_solvate_nwat()
-    _write_topology_header(ncopies)
-    ions_pos, ions_neg = _count_ions()
+def run(*, work_dir: Path | None = None):
+    """Read/write all files under ``work_dir`` (defaults to cwd)."""
+    wd = (work_dir or Path.cwd()).resolve()
+
+    ncopies = _count_copies(wd)
+    _solvate_crystal(wd)
+    nwat_initial = _read_solvate_nwat(wd)
+    _write_topology_header(wd, ncopies)
+    ions_pos, ions_neg = _count_ions(wd)
     net_ion_charge = (ions_pos - ions_neg) * ncopies
     print(f"Positive ions, negative ions, net charge: {ions_pos} {ions_neg} {net_ion_charge}")
 
     nna, ncl = _compute_ion_counts(nwat_initial, net_ion_charge)
-    _insert_ions(ncl, nna)
-    nwat = _count_final_water()
-    _finalize_topology(ncopies, nwat, ncl, nna)
+    _insert_ions(wd, ncl, nna)
+    nwat = _count_final_water(wd)
+    _finalize_topology(wd, ncopies, nwat, ncl, nna)
 
-    import shutil
-    shutil.copy("xtal_solv_cl_na.pdb", "md_model.pdb")
+    shutil.copy(wd / "xtal_solv_cl_na.pdb", wd / "md_model.pdb")
 
 
-def _count_copies() -> int:
+def _count_copies(wd: Path) -> int:
     nats_one = 0
-    with open("prot_dry.pdb") as fh:
+    with open(wd / "prot_dry.pdb", encoding="utf-8", errors="replace") as fh:
         for line in fh:
             if line.startswith(("ATOM", "HETATM")):
                 nats_one += 1
 
     nats_cell = 0
-    with open("xtal.pdb") as fh:
+    with open(wd / "xtal.pdb", encoding="utf-8", errors="replace") as fh:
         for line in fh:
             if line.startswith(("ATOM", "HETATM")):
                 nats_cell += 1
@@ -45,28 +50,29 @@ def _count_copies() -> int:
     return ncopies
 
 
-def _solvate_crystal():
+def _solvate_crystal(wd: Path):
     # Match scripts/solvate.sh: >& gmx_solvate.log so _read_solvate_nwat() can parse it.
-    with open("gmx_solvate.log", "w") as log_fh:
+    with open(wd / "gmx_solvate.log", "w", encoding="utf-8", errors="replace") as log_fh:
         subprocess.run(
             [
                 "gmx",
                 "solvate",
                 "-cp",
-                "xtal.pdb",
+                str(wd / "xtal.pdb"),
                 "-cs",
-                "waterbox/water_equil.gro",
+                str(wd / "waterbox" / "water_equil.gro"),
                 "-o",
-                "xtal_solv.pdb",
+                str(wd / "xtal_solv.pdb"),
             ],
             stdout=log_fh,
             stderr=subprocess.STDOUT,
+            cwd=str(wd),
             check=True,
         )
 
 
-def _read_solvate_nwat() -> int:
-    with open("gmx_solvate.log") as fh:
+def _read_solvate_nwat(wd: Path) -> int:
+    with open(wd / "gmx_solvate.log", encoding="utf-8", errors="replace") as fh:
         for line in fh:
             m = re.search(r"Output configuration contains\s+(\d+)", line)
             if m:
@@ -74,22 +80,22 @@ def _read_solvate_nwat() -> int:
     raise RuntimeError("Could not parse water count from gmx_solvate.log")
 
 
-def _write_topology_header(ncopies: int):
-    with open("prot.top") as fh:
+def _write_topology_header(wd: Path, ncopies: int):
+    with open(wd / "prot.top", encoding="utf-8", errors="replace") as fh:
         header_lines = []
         for line in fh:
             if "molecules" in line.lower():
                 break
             header_lines.append(line)
 
-    with open("md_model.top", "w") as fh:
+    with open(wd / "md_model.top", "w", encoding="utf-8", errors="replace") as fh:
         fh.writelines(header_lines)
 
 
-def _count_ions() -> tuple[int, int]:
+def _count_ions(wd: Path) -> tuple[int, int]:
     ions_pos = 0
     ions_neg = 0
-    with open("prot.pdb") as fh:
+    with open(wd / "prot.pdb", encoding="utf-8", errors="replace") as fh:
         for line in fh:
             if line.startswith("HETATM"):
                 if "Na+" in line:
@@ -110,40 +116,60 @@ def _compute_ion_counts(nwat: int, net_ion_charge: int) -> tuple[int, int]:
     return int(nna), int(ncl)
 
 
-def _insert_ions(ncl: int, nna: int):
-    subprocess.run([
-        "gmx", "insert-molecules",
-        "-f", "xtal_solv.pdb",
-        "-ci", "Cl-.pdb",
-        "-o", "xtal_solv_cl.pdb",
-        "-replace", "SOL",
-        "-nmol", str(ncl),
-    ], check=True)
+def _insert_ions(wd: Path, ncl: int, nna: int):
+    subprocess.run(
+        [
+            "gmx",
+            "insert-molecules",
+            "-f",
+            str(wd / "xtal_solv.pdb"),
+            "-ci",
+            str(wd / "Cl-.pdb"),
+            "-o",
+            str(wd / "xtal_solv_cl.pdb"),
+            "-replace",
+            "SOL",
+            "-nmol",
+            str(ncl),
+        ],
+        cwd=str(wd),
+        check=True,
+    )
 
-    subprocess.run([
-        "gmx", "insert-molecules",
-        "-f", "xtal_solv_cl.pdb",
-        "-ci", "Na+.pdb",
-        "-o", "xtal_solv_cl_na.pdb",
-        "-replace", "SOL",
-        "-nmol", str(nna),
-    ], check=True)
+    subprocess.run(
+        [
+            "gmx",
+            "insert-molecules",
+            "-f",
+            str(wd / "xtal_solv_cl.pdb"),
+            "-ci",
+            str(wd / "Na+.pdb"),
+            "-o",
+            str(wd / "xtal_solv_cl_na.pdb"),
+            "-replace",
+            "SOL",
+            "-nmol",
+            str(nna),
+        ],
+        cwd=str(wd),
+        check=True,
+    )
 
 
-def _count_final_water() -> int:
+def _count_final_water(wd: Path) -> int:
     wat_atoms = 0
-    with open("xtal_solv_cl_na.pdb") as fh:
+    with open(wd / "xtal_solv_cl_na.pdb", encoding="utf-8", errors="replace") as fh:
         for line in fh:
             if "WAT" in line:
                 wat_atoms += 1
     return wat_atoms // 3
 
 
-def _finalize_topology(ncopies: int, nwat: int, ncl: int, nna: int):
+def _finalize_topology(wd: Path, ncopies: int, nwat: int, ncl: int, nna: int):
     topcopy = "system1              1\n"
     topall = topcopy * ncopies
 
-    with open("md_model.top", "a") as fh:
+    with open(wd / "md_model.top", "a", encoding="utf-8", errors="replace") as fh:
         fh.write("[ molecules ]\n")
         fh.write("; Compound       #mols\n")
         fh.write(topall)
