@@ -7,36 +7,45 @@ Corresponds to run_all.sh line:
 import subprocess
 from pathlib import Path
 
+from .pdb_file_processing import resolve_artifacts_dir
 
-def run(ntomp: int = 26):
-    workdir = Path.cwd()
-    artifacts_dir = workdir / "artifacts"
-    wb_dir = workdir / "waterbox"
+
+def run(
+    ntomp: int = 26,
+    *,
+    work_dir: Path | None = None,
+    artifacts_dir: Path | None = None,
+    project_root: Path | None = None,
+):
+    """Build waterbox under ``work_dir/waterbox/`` using MDP files from project ``artifacts/``."""
+    wd = (work_dir or Path.cwd()).resolve()
+    ad = resolve_artifacts_dir(wd, project_root=project_root, artifacts_dir=artifacts_dir)
+    wb_dir = wd / "waterbox"
     wb_dir.mkdir(parents=True, exist_ok=True)
 
-    _extract_cryst1(workdir, wb_dir)
-    _create_box_pdb(workdir, wb_dir)
-    _insert_water(workdir, wb_dir)
-    _expand_waterbox(workdir, wb_dir)
+    _extract_cryst1(wd, wb_dir)
+    _create_box_pdb(wd, wb_dir)
+    _insert_water(wd, wb_dir)
+    _expand_waterbox(wd, wb_dir)
     # Topology must match the coordinate file passed to grompp (expanded box).
     nwat = _count_wat_molecules(wb_dir / "box_solv_expand.pdb")
-    _write_topology(workdir, wb_dir, nwat)
-    _minimize_waterbox(artifacts_dir, wb_dir, ntomp)
-    _equilibrate_waterbox(artifacts_dir, wb_dir, ntomp)
+    _write_topology(wd, wb_dir, nwat)
+    _minimize_waterbox(ad, wb_dir, ntomp)
+    _equilibrate_waterbox(ad, wb_dir, ntomp)
 
 
 def _extract_cryst1(workdir: Path, wb_dir: Path):
-    with open(workdir / "xtal.pdb") as fh:
+    with open(workdir / "xtal.pdb", encoding="utf-8", errors="replace") as fh:
         for line in fh:
             if line.startswith("CRYST1"):
-                with open(wb_dir / "cryst1_xtal.pdb", "w") as out:
+                with open(wb_dir / "cryst1_xtal.pdb", "w", encoding="utf-8", errors="replace") as out:
                     out.write(line)
                 return
 
 
 def _create_box_pdb(workdir: Path, wb_dir: Path):
     """Create a box.pdb with CRYST1 dimensions scaled from Angstroms to nm."""
-    with open(workdir / "xtal.pdb") as fh:
+    with open(workdir / "xtal.pdb", encoding="utf-8", errors="replace") as fh:
         for line in fh:
             if line.startswith("CRYST1"):
                 a = float(line[6:15]) / 10.0
@@ -46,39 +55,61 @@ def _create_box_pdb(workdir: Path, wb_dir: Path):
                 beta = float(line[40:47])
                 gamma = float(line[47:54])
                 cryst1 = f"CRYST1{a:9.3f}{b:9.3f}{c:9.3f}{alpha:7.2f}{beta:7.2f}{gamma:7.2f}\n"
-                with open(wb_dir / "box.pdb", "w") as out:
+                with open(wb_dir / "box.pdb", "w", encoding="utf-8", errors="replace") as out:
                     out.write(cryst1)
                 return
 
 
 def _insert_water(workdir: Path, wb_dir: Path):
-    subprocess.run([
-        "gmx", "insert-molecules",
-        "-f", str(wb_dir / "box.pdb"),
-        "-ci", str(workdir / "WAT.pdb"),
-        "-conc", "58.0",
-        "-o", str(wb_dir / "box_solv.pdb"),
-    ], capture_output=True, text=True, cwd=str(wb_dir), check=True)
+    subprocess.run(
+        [
+            "gmx",
+            "insert-molecules",
+            "-f",
+            str(wb_dir / "box.pdb"),
+            "-ci",
+            str(workdir / "WAT.pdb"),
+            "-conc",
+            "58.0",
+            "-o",
+            str(wb_dir / "box_solv.pdb"),
+        ],
+        capture_output=True,
+        text=True,
+        cwd=str(wb_dir),
+        check=True,
+    )
 
 
 def _expand_waterbox(workdir: Path, wb_dir: Path):
-    subprocess.run([
-        "PropPDB",
-        "-p", str(wb_dir / "box_solv.pdb"),
-        "-o", str(wb_dir / "box_solv_expand.pdb"),
-        "-ix", "10", "-iy", "10", "-iz", "10",
-    ], check=True)
+    subprocess.run(
+        [
+            "PropPDB",
+            "-p",
+            str(wb_dir / "box_solv.pdb"),
+            "-o",
+            str(wb_dir / "box_solv_expand.pdb"),
+            "-ix",
+            "10",
+            "-iy",
+            "10",
+            "-iz",
+            "10",
+        ],
+        cwd=str(wb_dir),
+        check=True,
+    )
 
-    with open(wb_dir / "cryst1_xtal.pdb") as fh:
+    with open(wb_dir / "cryst1_xtal.pdb", encoding="utf-8", errors="replace") as fh:
         cryst1 = fh.read()
 
-    with open(wb_dir / "box_solv_expand.pdb") as fh:
+    with open(wb_dir / "box_solv_expand.pdb", encoding="utf-8", errors="replace") as fh:
         lines = [
             l for l in fh
             if not l.startswith(("CRYST1", "HEADER"))
         ]
 
-    with open(wb_dir / "box_solv_expand.pdb", "w") as fh:
+    with open(wb_dir / "box_solv_expand.pdb", "w", encoding="utf-8", errors="replace") as fh:
         fh.write(cryst1)
         fh.writelines(lines)
 
@@ -86,7 +117,7 @@ def _expand_waterbox(workdir: Path, wb_dir: Path):
 def _count_wat_molecules(pdb_path: Path) -> int:
     """Count WAT residues assuming 3-site water (matches GROMACS WAT.pdb)."""
     wat_atoms = 0
-    with open(pdb_path) as fh:
+    with open(pdb_path, encoding="utf-8", errors="replace") as fh:
         for line in fh:
             if line.startswith(("ATOM", "HETATM")) and " WAT " in line:
                 wat_atoms += 1
@@ -98,14 +129,14 @@ def _count_wat_molecules(pdb_path: Path) -> int:
 
 
 def _write_topology(workdir: Path, wb_dir: Path, nwat: int):
-    with open(workdir / "prot.top") as fh:
+    with open(workdir / "prot.top", encoding="utf-8", errors="replace") as fh:
         header_lines = []
         for line in fh:
             if "molecules" in line.lower():
                 break
             header_lines.append(line)
 
-    with open(wb_dir / "waterbox.top", "w") as fh:
+    with open(wb_dir / "waterbox.top", "w", encoding="utf-8", errors="replace") as fh:
         fh.writelines(header_lines)
         fh.write("[ molecules ]\n")
         fh.write("; Compound       #mols\n")
@@ -113,35 +144,73 @@ def _write_topology(workdir: Path, wb_dir: Path, nwat: int):
 
 
 def _minimize_waterbox(artifacts_dir: Path, wb_dir: Path, ntomp: int):
-    subprocess.run([
-        "gmx", "grompp",
-        "-f", str(artifacts_dir / "min_water.mdp"),
-        "-c", str(wb_dir / "box_solv_expand.pdb"),
-        "-o", str(wb_dir / "water_min.tpr"),
-        "-p", str(wb_dir / "waterbox.top"),
-    ], cwd=str(wb_dir), check=True)
+    subprocess.run(
+        [
+            "gmx",
+            "grompp",
+            "-f",
+            str(artifacts_dir / "min_water.mdp"),
+            "-c",
+            str(wb_dir / "box_solv_expand.pdb"),
+            "-o",
+            str(wb_dir / "water_min.tpr"),
+            "-p",
+            str(wb_dir / "waterbox.top"),
+        ],
+        cwd=str(wb_dir),
+        check=True,
+    )
 
-    subprocess.run([
-        "gmx", "mdrun",
-        "-ntmpi", "1", "-ntomp", str(ntomp),
-        "-deffnm", "water_min", "-v",
-    ], cwd=str(wb_dir), check=True)
+    subprocess.run(
+        [
+            "gmx",
+            "mdrun",
+            "-ntmpi",
+            "1",
+            "-ntomp",
+            str(ntomp),
+            "-deffnm",
+            "water_min",
+            "-v",
+        ],
+        cwd=str(wb_dir),
+        check=True,
+    )
 
 
 def _equilibrate_waterbox(artifacts_dir: Path, wb_dir: Path, ntomp: int):
-    subprocess.run([
-        "gmx", "grompp",
-        "-f", str(artifacts_dir / "equil_water.mdp"),
-        "-c", str(wb_dir / "water_min.gro"),
-        "-o", str(wb_dir / "water_equil.tpr"),
-        "-p", str(wb_dir / "waterbox.top"),
-    ], cwd=str(wb_dir), check=True)
+    subprocess.run(
+        [
+            "gmx",
+            "grompp",
+            "-f",
+            str(artifacts_dir / "equil_water.mdp"),
+            "-c",
+            str(wb_dir / "water_min.gro"),
+            "-o",
+            str(wb_dir / "water_equil.tpr"),
+            "-p",
+            str(wb_dir / "waterbox.top"),
+        ],
+        cwd=str(wb_dir),
+        check=True,
+    )
 
-    subprocess.run([
-        "gmx", "mdrun",
-        "-ntmpi", "1", "-ntomp", str(ntomp),
-        "-deffnm", "water_equil", "-v",
-    ], cwd=str(wb_dir), check=True)
+    subprocess.run(
+        [
+            "gmx",
+            "mdrun",
+            "-ntmpi",
+            "1",
+            "-ntomp",
+            str(ntomp),
+            "-deffnm",
+            "water_equil",
+            "-v",
+        ],
+        cwd=str(wb_dir),
+        check=True,
+    )
 
 
 if __name__ == "__main__":

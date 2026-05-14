@@ -1,4 +1,4 @@
-"""PDB ID download and ligand residue file preparation helpers."""
+"""PDB ID download, ligand residue file preparation, and workflow path helpers."""
 
 from __future__ import annotations
 
@@ -140,3 +140,39 @@ def prepare_pdb_and_resn_files(lig_dir: Path, pdb_id: str = "6B8X") -> tuple[str
         raise RuntimeError(f"Expected exactly one ligand residue name, found: {unique}")
     resn = unique[0]
     return resn, pdb_path
+
+
+def infer_project_root_from_run_dir(work_dir: Path) -> Path | None:
+    """If ``work_dir`` matches ``.../<PDB>/<PDB>_<suffix>``, return ``...`` (project root).
+
+    ``param_prot`` creates ``project_root / <PDB> / <PDB>_<timestamp>/``.
+    """
+    wd = work_dir.resolve()
+    if "_" not in wd.name:
+        return None
+    pdb_from_stamp = wd.name.split("_", 1)[0]
+    parent = wd.parent
+    if parent.name.upper() != pdb_from_stamp.upper():
+        return None
+    return parent.parent
+
+
+def resolve_artifacts_dir(
+    work_dir: Path,
+    *,
+    project_root: Path | None = None,
+    artifacts_dir: Path | None = None,
+) -> Path:
+    """Resolve ``artifacts/`` at **project root**, not inside the per-run directory.
+
+    Precedence: explicit ``artifacts_dir`` > ``project_root / "artifacts"`` >
+    inferred project root from ``work_dir`` layout > ``work_dir / "artifacts"``.
+    """
+    if artifacts_dir is not None:
+        return artifacts_dir.resolve()
+    root = project_root
+    if root is None:
+        root = infer_project_root_from_run_dir(work_dir)
+    if root is not None:
+        return (root / "artifacts").resolve()
+    return (work_dir.resolve() / "artifacts").resolve()

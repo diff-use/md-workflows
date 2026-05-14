@@ -51,4 +51,4 @@ done
 #"gmx grompp" uses -r md_model.pdb as the reference coordinates for position restraints (atoms are pulled back toward their original positions in md_model.pdb).
 #"gmx mdrun" line runs the restrained NPT equilibration defined in equil.mdp
 gmx grompp -f equil.mdp -c md_min.gro -o md_equil.tpr -p md_model_posre.top -r md_model.pdb >& grompp_equil.log
-gmx mdrun -ntmpi 1 -ntomp 26 -deffnm md_equil -v
+gmx mdrun -ntmpi 1 -ntomp 26 -nb gpu -pme gpu -bonded gpu -dlb no -notunepme -deffnm md_equil -v

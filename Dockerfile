@@ -1,5 +1,9 @@
 # ==================== BUILDER ====================
-FROM ubuntu:22.04 AS builder
+# CUDA *devel* image supplies nvcc + headers so GROMACS can configure with -DGMX_GPU=CUDA.
+# Must match the major.minor of the final runtime image (below) for sane libcudart/cufft ABI.
+#   docker build --build-arg CUDA_IMAGE_TAG=12.4.1 -t diffuseproject/md:gemmi .
+ARG CUDA_IMAGE_TAG=12.6.3
+FROM nvidia/cuda:${CUDA_IMAGE_TAG}-devel-ubuntu22.04 AS builder
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -80,6 +84,9 @@ RUN set -ex \
     && mkdir build && cd build \
     && cmake .. \
         -DGMX_BUILD_OWN_FFTW=ON \
+        -DGMX_GPU=CUDA \
+        -DCUDAToolkit_ROOT=/usr/local/cuda \
+        -DGMX_CUDA_TARGET_SM=90 \
     && make -j"$(nproc)" \
     && make install \
     && cd / \
@@ -101,9 +108,16 @@ RUN $MAMBA_EXE remove -n lunus -y scons cmake \
     true
 
 # ==================== FINAL ====================
-FROM ubuntu:22.04
+# NVIDIA CUDA runtime: libcudart / cuFFT etc. for CUDA GROMACS at run time.
+# Host still needs the driver + NVIDIA Container Toolkit; use docker run --gpus all ...
+# CUDA_IMAGE_TAG is set by the global ARG at the top of this file.
+FROM nvidia/cuda:${CUDA_IMAGE_TAG}-runtime-ubuntu22.04
+
 
 ENV DEBIAN_FRONTEND=noninteractive
+# Let GPU-requiring processes see the GPU by default (can override at run time).
+ENV NVIDIA_VISIBLE_DEVICES=all
+ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates \
