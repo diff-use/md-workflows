@@ -1,0 +1,93 @@
+# syntax=docker/dockerfile:1
+# md-workflows - Astera ACTL overlay.
+#
+# The public diffuseproject/md:0.0.2 image was built from the dev-branch
+# Dockerfile. This overlay keeps that scientific stack intact and only adds the
+# ACTL workspace conventions: /home/dev as the persisted home, editor/sync
+# tools, root-oriented interactive pods, and global shell init for the lunus env.
+#
+# Build locally:
+#   docker buildx build --platform linux/amd64 \
+#     -f Dockerfile.astera \
+#     --build-arg MD_WORKFLOWS_BASE_IMAGE=docker.io/diffuseproject/md:0.0.2@sha256:0ec5455d36f3d097fa67c73c3b7b86c0bd039ec19d5ca416ae5350d9476703e5 \
+#     -t harbor.astera.sh/library/md-workflows:0.0.2-actl-2026-06-08 \
+#     .
+
+ARG MD_WORKFLOWS_BASE_IMAGE=docker.io/diffuseproject/md:0.0.2@sha256:0ec5455d36f3d097fa67c73c3b7b86c0bd039ec19d5ca416ae5350d9476703e5
+FROM ${MD_WORKFLOWS_BASE_IMAGE} AS astera
+
+USER root
+
+ARG ACTL_PACKAGES="bash ca-certificates rsync tini vim nano emacs-nox git zsh"
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    HOME=/home/dev \
+    XDG_CONFIG_HOME=/home/dev/.config \
+    XDG_CACHE_HOME=/home/dev/.cache \
+    XDG_DATA_HOME=/home/dev/.local/share \
+    SHELL=/bin/bash \
+    MAMBA_ROOT_PREFIX=/opt/micromamba \
+    MAMBA_EXE=/opt/micromamba/bin/micromamba \
+    CONDA_PREFIX=/opt/micromamba/envs/lunus \
+    PYTHONPATH=/home/dev/workspace:/opt/md-workflows \
+    PATH="/opt/micromamba/bin:/opt/micromamba/envs/lunus/bin:/usr/local/gromacs/bin:${PATH}"
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ${ACTL_PACKAGES} \
+        bc \
+        bzip2 \
+        coreutils \
+        libgomp1 \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean \
+    && mkdir -p /home/dev/.config /home/dev/.cache /home/dev/.local/share /home/dev/workspace /etc/zsh \
+    && cat > /usr/local/share/actl-md-workflows-shell-init.sh <<'EOF'
+# Keep the baked md-workflows/lunus environment active while letting ACTL's
+# synced checkout at /home/dev/workspace override the baked package for edits.
+if [ -d /opt/micromamba/envs/lunus/bin ]; then
+  case ":${PATH}:" in
+    *:/opt/micromamba/envs/lunus/bin:*) ;;
+    *) PATH="/opt/micromamba/envs/lunus/bin:${PATH}" ;;
+  esac
+  export PATH
+  CONDA_PREFIX=/opt/micromamba/envs/lunus
+  export CONDA_PREFIX
+fi
+
+if [ -x /opt/micromamba/bin/micromamba ]; then
+  case "${ZSH_VERSION:+zsh}${BASH_VERSION:+bash}" in
+    zsh*) eval "$(/opt/micromamba/bin/micromamba shell hook --shell zsh 2>/dev/null)" || true ;;
+    *bash*) eval "$(/opt/micromamba/bin/micromamba shell hook --shell bash 2>/dev/null)" || true ;;
+  esac
+fi
+
+if [ -d /home/dev/workspace ]; then
+  case ":${PYTHONPATH:-}:" in
+    *:/home/dev/workspace:*) ;;
+    *) PYTHONPATH="/home/dev/workspace${PYTHONPATH:+:${PYTHONPATH}}" ;;
+  esac
+fi
+if [ -d /opt/md-workflows ]; then
+  case ":${PYTHONPATH:-}:" in
+    *:/opt/md-workflows:*) ;;
+    *) PYTHONPATH="${PYTHONPATH:+${PYTHONPATH}:}/opt/md-workflows" ;;
+  esac
+fi
+export PYTHONPATH
+
+case "$-" in
+  *i*)
+    if [ -d /home/dev/workspace ]; then
+      cd /home/dev/workspace || true
+    fi
+    ;;
+esac
+EOF
+RUN chmod 0644 /usr/local/share/actl-md-workflows-shell-init.sh \
+    && printf '\n# Astera md-workflows environment\n[ -r /usr/local/share/actl-md-workflows-shell-init.sh ] && . /usr/local/share/actl-md-workflows-shell-init.sh\n' >> /etc/bash.bashrc \
+    && printf '\n# Astera md-workflows environment\n[ -r /usr/local/share/actl-md-workflows-shell-init.sh ] && . /usr/local/share/actl-md-workflows-shell-init.sh\n' >> /etc/zsh/zshrc \
+    && for cmd in md_workflows.mdmx gmx micromamba rsync tini vim nano emacs zsh; do command -v "${cmd}" >/dev/null; done
+
+WORKDIR /home/dev
+SHELL ["/bin/bash", "-c"]
+CMD ["bash"]
