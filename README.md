@@ -7,7 +7,7 @@ This project includes a `Dockerfile` and a Python CLI entry point for running th
 The Astera overlay image is published as:
 
 ```bash
-harbor.astera.sh/library/md-workflows:0.0.2-actl-2026-06-08
+harbor.astera.sh/library/md-workflows:0.0.2-actl-2026-06-09
 ```
 
 It is available in ACTL as the `md-workflows` image alias for the `diffuse` namespace. From this checkout:
@@ -37,7 +37,7 @@ To build the ACTL overlay locally:
 docker buildx build --platform linux/amd64 \
   -f Dockerfile.astera \
   --build-arg MD_WORKFLOWS_BASE_IMAGE=docker.io/diffuseproject/md:0.0.2@sha256:0ec5455d36f3d097fa67c73c3b7b86c0bd039ec19d5ca416ae5350d9476703e5 \
-  -t harbor.astera.sh/library/md-workflows:0.0.2-actl-2026-06-08 \
+  -t harbor.astera.sh/library/md-workflows:0.0.2-actl-2026-06-09 \
   .
 ```
 

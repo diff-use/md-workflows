@@ -10,7 +10,7 @@
 #   docker buildx build --platform linux/amd64 \
 #     -f Dockerfile.astera \
 #     --build-arg MD_WORKFLOWS_BASE_IMAGE=docker.io/diffuseproject/md:0.0.2@sha256:0ec5455d36f3d097fa67c73c3b7b86c0bd039ec19d5ca416ae5350d9476703e5 \
-#     -t harbor.astera.sh/library/md-workflows:0.0.2-actl-2026-06-08 \
+#     -t harbor.astera.sh/library/md-workflows:0.0.2-actl-2026-06-09 \
 #     .
 
 ARG MD_WORKFLOWS_BASE_IMAGE=docker.io/diffuseproject/md:0.0.2@sha256:0ec5455d36f3d097fa67c73c3b7b86c0bd039ec19d5ca416ae5350d9476703e5
@@ -18,7 +18,7 @@ FROM ${MD_WORKFLOWS_BASE_IMAGE} AS astera
 
 USER root
 
-ARG ACTL_PACKAGES="bash ca-certificates rsync tini vim nano emacs-nox git zsh"
+ARG ACTL_PACKAGES="bash ca-certificates curl wget rsync tini vim nano emacs-nox git zsh htop tmux ncdu iputils-ping dnsutils"
 
 ENV DEBIAN_FRONTEND=noninteractive \
     HOME=/home/dev \
@@ -86,7 +86,10 @@ EOF
 RUN chmod 0644 /usr/local/share/actl-md-workflows-shell-init.sh \
     && printf '\n# Astera md-workflows environment\n[ -r /usr/local/share/actl-md-workflows-shell-init.sh ] && . /usr/local/share/actl-md-workflows-shell-init.sh\n' >> /etc/bash.bashrc \
     && printf '\n# Astera md-workflows environment\n[ -r /usr/local/share/actl-md-workflows-shell-init.sh ] && . /usr/local/share/actl-md-workflows-shell-init.sh\n' >> /etc/zsh/zshrc \
-    && for cmd in md_workflows.mdmx gmx micromamba rsync tini vim nano emacs zsh; do command -v "${cmd}" >/dev/null; done
+    && for cmd in \
+        md_workflows.mdmx gmx micromamba curl wget rsync tini vim nano emacs git zsh htop tmux ncdu ping dig; do \
+          command -v "${cmd}" >/dev/null; \
+        done
 
 WORKDIR /home/dev
 SHELL ["/bin/bash", "-c"]
