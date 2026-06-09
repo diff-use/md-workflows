@@ -11,7 +11,7 @@ on:
 env:
   ASTERA_REGISTRY: harbor.astera.sh
   ASTERA_IMAGE_NAME: library/md-workflows
-  ACTL_VERSION_TAG: 0.0.2-actl-2026-06-08
+  ACTL_VERSION_TAG: 0.0.2-actl-2026-06-09
   MD_WORKFLOWS_BASE_IMAGE: ${{ vars.MD_WORKFLOWS_BASE_IMAGE || 'docker.io/diffuseproject/md:0.0.2@sha256:0ec5455d36f3d097fa67c73c3b7b86c0bd039ec19d5ca416ae5350d9476703e5' }}
 
 jobs:
