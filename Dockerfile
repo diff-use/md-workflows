@@ -1,8 +1,14 @@
-# ==================== BUILDER ====================
-FROM ubuntu:22.04 AS builder
+# ==================== CUDA 12.6 (single-stage, devel) ====================
+# CUDA 12.6 *devel* image: nvcc + full CUDA Toolkit, kept for the final runtime so GROMACS builds
+# with -DGMX_GPU=CUDA AND future CUDA-dependent tooling can compile inside the container.
+# Host needs the NVIDIA driver + NVIDIA Container Toolkit at run time (e.g. docker run --gpus all).
+#   docker build --build-arg CUDA_IMAGE_TAG=12.6.3 -t diffuseproject/md:gpu .
+ARG CUDA_IMAGE_TAG=12.6.3
+FROM nvidia/cuda:${CUDA_IMAGE_TAG}-devel-ubuntu22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
+# ---------- system packages (build tools + runtime deps) ----------
 RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential \
         ca-certificates \
@@ -10,18 +16,23 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         wget \
         git \
         bzip2 \
+        coreutils \
+        rsync \
+        bc \
+        libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
 # ---------- install micromamba ----------
+# Install envs under /opt so shebangs (#!/opt/micromamba/...) match the runtime layout.
 RUN curl -L micro.mamba.pm/install.sh -o /tmp/micromamba_install.sh \
     && printf '\n\n\n\n' | bash /tmp/micromamba_install.sh \
-    && rm /tmp/micromamba_install.sh
+    && rm /tmp/micromamba_install.sh \
+    && mkdir -p /opt/micromamba/bin \
+    && cp /root/.local/bin/micromamba /opt/micromamba/bin/micromamba
 
-# Install envs under /opt so copied shebangs (#!/opt/micromamba/...) match the final image layout.
-RUN mkdir -p /opt/micromamba
 ENV MAMBA_ROOT_PREFIX=/opt/micromamba
-ENV MAMBA_EXE=/root/.local/bin/micromamba
-ENV PATH="/root/.local/bin:${PATH}"
+ENV MAMBA_EXE=/opt/micromamba/bin/micromamba
+ENV PATH="/opt/micromamba/bin:${PATH}"
 
 # ---------- conda environment (inline of lunus.yaml) ----------
 RUN cat > /tmp/lunus.yaml <<'YAML'
@@ -69,7 +80,7 @@ ENV CONDA_PREFIX="${MAMBA_ENV}"
 # ---------- pip packages ----------
 RUN pip install --no-cache-dir git+https://github.com/ando-lab/mdx2.git
 
-# ---------- GROMACS (inline of install_gromacs.sh) ----------
+# ---------- GROMACS (CUDA build, targeting H100 / sm_90) ----------
 RUN set -ex \
     && d=$(mktemp -d) \
     && cd "$d" \
@@ -79,14 +90,17 @@ RUN set -ex \
     && mkdir build && cd build \
     && cmake .. \
         -DGMX_BUILD_OWN_FFTW=ON \
+        -DGMX_GPU=CUDA \
+        -DCUDAToolkit_ROOT=/usr/local/cuda \
+        -DGMX_CUDA_TARGET_SM=90 \
     && make -j"$(nproc)" \
     && make install \
     && cd / \
     && rm -rf "$d"
 
 # ---------- lunus ----------
-RUN mkdir -p /root/packages \
-    && cd /root/packages \
+RUN mkdir -p /opt/packages \
+    && cd /opt/packages \
     && git clone https://github.com/lanl/lunus \
     && cd lunus \
     && scons enable-openmp=True
@@ -96,132 +110,48 @@ RUN $MAMBA_EXE remove -n lunus -y scons cmake \
     && $MAMBA_EXE clean -afy \
     && find /opt/micromamba -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null; \
     find /opt/micromamba -name "*.pyc" -delete 2>/dev/null; \
-    rm -rf /root/packages/lunus/.git; \
+    rm -rf /opt/packages/lunus/.git; \
     true
 
-# ==================== FINAL ====================
-FROM ubuntu:22.04
-
-ENV DEBIAN_FRONTEND=noninteractive
-
+# ---------- ChimeraX ----------
 ARG CHIMERAX_URL="https://www.cgl.ucsf.edu/chimerax/cgi-bin/secure/chimerax-get.py?file=current/ubuntu-22.04/chimerax-daily.deb"
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        ca-certificates \
-        coreutils \
-        rsync \
-        bc \
-        bzip2 \
-        curl \
-        libgomp1 \
+RUN apt-get update \
     && curl -s -c /tmp/cx_cookies -d "choice=Accept" "${CHIMERAX_URL}" \
        | grep -oP 'url=\K[^"]*' > /tmp/cx_redirect \
     && curl -s -b /tmp/cx_cookies -o /tmp/chimerax.deb \
        "https://www.cgl.ucsf.edu$(cat /tmp/cx_redirect)" \
     && apt-get install -y /tmp/chimerax.deb \
     && rm -f /tmp/chimerax.deb /tmp/cx_cookies /tmp/cx_redirect \
-    && apt-get purge -y curl \
-    && apt-get autoremove -y \
     && rm -rf /var/lib/apt/lists/*
 
-# ---------- bashrc (inline of bashrc_new) ----------
-RUN cat > /etc/skel/.bashrc <<'BASHRC'
-# If not running interactively, don't do anything
-#case $- in
-#    *i*) ;;
-#      *) return;;
-#esac
+# ---------- shell init (minimal) ----------
+# Runs as root by default (see end of file); downstream images (e.g. Dockerfile.astera) own the
+# general user environment. Put the micromamba hook in the *global* bashrc so `micromamba activate`
+# works for root and for any UID supplied via `docker run --user ...` (skel only covers new users).
+RUN printf '\n# Enable `micromamba activate` in interactive shells\neval "$(micromamba shell hook --shell bash)"\n' >> /etc/bash.bashrc
 
-HISTCONTROL=ignoreboth
-shopt -s histappend
-HISTSIZE=1000
-HISTFILESIZE=2000
-shopt -s checkwinsize
-
-[ -x /usr/bin/lesspipe ] && eval "$(SHELL=/bin/sh lesspipe)"
-
-if [ -z "${debian_chroot:-}" ] && [ -r /etc/debian_chroot ]; then
-    debian_chroot=$(cat /etc/debian_chroot)
-fi
-
-case "$TERM" in
-    xterm-color|*-256color) color_prompt=yes;;
-esac
-
-if [ -n "$force_color_prompt" ]; then
-    if [ -x /usr/bin/tput ] && tput setaf 1 >&/dev/null; then
-        color_prompt=yes
-    else
-        color_prompt=
-    fi
-fi
-
-if [ "$color_prompt" = yes ]; then
-    PS1='${debian_chroot:+($debian_chroot)}\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ '
-else
-    PS1='${debian_chroot:+($debian_chroot)}\u@\h:\w\$ '
-fi
-unset color_prompt force_color_prompt
-
-case "$TERM" in
-xterm*|rxvt*)
-    PS1="\[\e]0;${debian_chroot:+($debian_chroot)}\u@\h: \w\a\]$PS1"
-    ;;
-*)
-    ;;
-esac
-
-if [ -x /usr/bin/dircolors ]; then
-    test -r ~/.dircolors && eval "$(dircolors -b ~/.dircolors)" || eval "$(dircolors -b)"
-    alias ls='ls --color=auto'
-    alias grep='grep --color=auto'
-    alias fgrep='fgrep --color=auto'
-    alias egrep='egrep --color=auto'
-fi
-
-alias ll='ls -alF'
-alias la='ls -A'
-alias l='ls -CF'
-
-if [ -f ~/.bash_aliases ]; then
-    . ~/.bash_aliases
-fi
-
-if ! shopt -oq posix; then
-  if [ -f /usr/share/bash-completion/bash_completion ]; then
-    . /usr/share/bash-completion/bash_completion
-  elif [ -f /etc/bash_completion ]; then
-    . /etc/bash_completion
-  fi
-fi
-
-eval "$(micromamba shell hook --shell bash)"
-BASHRC
-
-# ---------- copy artifacts from builder ----------
-COPY --from=builder /root/.local/bin/micromamba /opt/micromamba/bin/micromamba
-COPY --from=builder /opt/micromamba /opt/micromamba
-COPY --from=builder /usr/local/gromacs /usr/local/gromacs
-COPY --from=builder /root/packages /opt/packages
-
+# ---------- md-workflows ----------
 # Ship md-workflows in the lunus env so Hub users need not pip install / extend PATH.
+# Placed late so code edits don't invalidate the expensive conda/GROMACS layers.
 COPY pyproject.toml /opt/md-workflows/pyproject.toml
 COPY md_workflows /opt/md-workflows/md_workflows
 RUN /opt/micromamba/envs/lunus/bin/python -m pip install --no-cache-dir /opt/md-workflows
 
-ENV MAMBA_ROOT_PREFIX=/opt/micromamba
-ENV MAMBA_EXE=/opt/micromamba/bin/micromamba
 ENV PATH="/opt/micromamba/bin:/opt/micromamba/envs/lunus/bin:/usr/local/gromacs/bin:${PATH}"
-ENV CONDA_PREFIX=/opt/micromamba/envs/lunus
-ENV HOME=/home/mduser
 
-ARG UID=1000
-ARG GID=1000
-RUN groupadd -g "${GID}" mduser \
-    && useradd -m -u "${UID}" -g "${GID}" -s /bin/bash mduser \
-    && mkdir -p /workspace \
-    && chown -R mduser:mduser /home/mduser /workspace /opt/micromamba /opt/packages /opt/md-workflows
+# ---------- GPU runtime metadata (placed late so it doesn't bust the build cache) ----------
+# Do NOT auto-claim GPUs. The base nvidia/cuda image sets NVIDIA_VISIBLE_DEVICES=all, which under
+# Kubernetes (NVIDIA device plugin / GPU Operator) overrides per-pod GPU isolation and exposes every
+# node GPU regardless of resource requests. Override to "void" so GPUs are granted only at run time:
+# `docker run --gpus ...` and the K8s device plugin both set NVIDIA_VISIBLE_DEVICES themselves.
+ENV NVIDIA_VISIBLE_DEVICES=void
+# Capabilities to mount when a GPU *is* granted (harmless when none is).
+ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility
 
-USER mduser
+# Run as root by default. No baked non-root user: downstream images (Dockerfile.astera) run as root,
+# and the standalone README workflow overrides identity with `docker run --user "$(id -u):$(id -g)"`.
+# /opt artifacts stay root-owned at default perms, so they remain readable/executable by any UID.
+# A dedicated user can be added later if a use case needs one.
 WORKDIR /workspace
 SHELL ["/bin/bash", "-c"]
 CMD ["bash"]
