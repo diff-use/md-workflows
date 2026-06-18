@@ -81,6 +81,9 @@ ENV CONDA_PREFIX="${MAMBA_ENV}"
 RUN pip install --no-cache-dir git+https://github.com/ando-lab/mdx2.git
 
 # ---------- GROMACS (CUDA build, targeting H100 / sm_90) ----------
+# GMX_SIMD is pinned to AVX_512 (Voltage Park Xeon Platinum supports it) instead of letting CMake
+# auto-detect from the build host: under QEMU emulation detection falls back to SSE4.1, which would
+# cripple CPU-side kernels. Pinning makes the CPU SIMD deployment-correct regardless of build host.
 RUN set -ex \
     && d=$(mktemp -d) \
     && cd "$d" \
@@ -93,6 +96,7 @@ RUN set -ex \
         -DGMX_GPU=CUDA \
         -DCUDAToolkit_ROOT=/usr/local/cuda \
         -DGMX_CUDA_TARGET_SM=90 \
+        -DGMX_SIMD=AVX_512 \
     && make -j"$(nproc)" \
     && make install \
     && cd / \
