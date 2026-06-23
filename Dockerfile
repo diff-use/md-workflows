@@ -126,7 +126,8 @@ RUN apt-get update \
        "https://www.cgl.ucsf.edu$(cat /tmp/cx_redirect)" \
     && apt-get install -y /tmp/chimerax.deb \
     && rm -f /tmp/chimerax.deb /tmp/cx_cookies /tmp/cx_redirect \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /home/dev/.config/ChimeraX
 
 # ---------- shell init (minimal) ----------
 # Runs as root by default (see end of file); downstream images (e.g. Dockerfile.astera) own the
