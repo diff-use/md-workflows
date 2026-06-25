@@ -1,13 +1,17 @@
 name: CI
 
-# Cheap, hosted-runner checks for every push/PR. Deliberately does NOT build or push images:
-# the expensive GROMACS/CUDA builds run only in build-images.yml (on the Astera infra branch,
-# on push/dispatch/tags — never on pull_request), so fork PRs can't trigger heavy compute.
+# Cheap, hosted-runner checks. Deliberately does NOT build or push images: the expensive
+# GROMACS/CUDA builds run only in build-images.yml (on the Astera infra branch, on
+# push/dispatch — never on pull_request), so fork PRs can't trigger heavy compute.
+#
+# `push` is scoped to the long-lived branches and `pull_request` covers the rest. This avoids
+# the double-run that happens when a single push to a branch with an open PR matches BOTH a
+# wildcard `push` and `pull_request`: feature-branch pushes now run once (via pull_request),
+# and main/astera get a post-merge run (via push).
 on:
   push:
-    branches: ['**']
+    branches: [main, astera]
   pull_request:
-    branches: ['**']
   workflow_dispatch:
 
 permissions:
