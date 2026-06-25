@@ -1,8 +1,16 @@
-# ==================== CUDA 12.6 (single-stage, devel) ====================
-# CUDA 12.6 *devel* image: nvcc + full CUDA Toolkit, kept for the final runtime so GROMACS builds
-# with -DGMX_GPU=CUDA AND future CUDA-dependent tooling can compile inside the container.
-# Host needs the NVIDIA driver + NVIDIA Container Toolkit at run time (e.g. docker run --gpus all).
-#   docker build --build-arg CUDA_IMAGE_TAG=12.6.3 -t diffuseproject/md:gpu .
+# ==================== md-workflows base (stage 1 of 3) ====================
+# Architecture-neutral foundation: CUDA 12.6 *devel* toolchain + the full scientific
+# conda stack (AmberTools / DIALS / cctbx / mdtraj / …), lunus, and ChimeraX. This layer
+# carries everything that is portable across compute; the non-portable GROMACS compile and
+# the md-workflows app are added downstream in Dockerfile.gromacs, and Astera workspace
+# conventions in Dockerfile.actl.
+#
+# CUDA *devel* (nvcc + full Toolkit) is kept in the runtime so GROMACS can build with
+# -DGMX_GPU=CUDA downstream and future CUDA tooling can compile inside the container. The
+# host needs the NVIDIA driver + NVIDIA Container Toolkit at run time (docker run --gpus all).
+#
+# Build:
+#   docker build -f Dockerfile.base --build-arg CUDA_IMAGE_TAG=12.6.3 -t md-base:local .
 ARG CUDA_IMAGE_TAG=12.6.3
 FROM nvidia/cuda:${CUDA_IMAGE_TAG}-devel-ubuntu22.04
 
@@ -35,6 +43,9 @@ ENV MAMBA_EXE=/opt/micromamba/bin/micromamba
 ENV PATH="/opt/micromamba/bin:${PATH}"
 
 # ---------- conda environment (inline of lunus.yaml) ----------
+# cmake is kept here (not removed in this stage) because Dockerfile.gromacs needs it to
+# build GROMACS; it is removed at the end of that downstream stage. scons is removed below
+# once lunus is built.
 RUN cat > /tmp/lunus.yaml <<'YAML'
 name: lunus
 channels:
@@ -80,28 +91,6 @@ ENV CONDA_PREFIX="${MAMBA_ENV}"
 # ---------- pip packages ----------
 RUN pip install --no-cache-dir git+https://github.com/ando-lab/mdx2.git
 
-# ---------- GROMACS (CUDA build, targeting H100 / sm_90) ----------
-# GMX_SIMD is pinned to AVX_512 (Voltage Park Xeon Platinum supports it) instead of letting CMake
-# auto-detect from the build host: under QEMU emulation detection falls back to SSE4.1, which would
-# cripple CPU-side kernels. Pinning makes the CPU SIMD deployment-correct regardless of build host.
-RUN set -ex \
-    && d=$(mktemp -d) \
-    && cd "$d" \
-    && wget https://ftp.gromacs.org/gromacs/gromacs-2025.2.tar.gz \
-    && tar xfz gromacs-2025.2.tar.gz \
-    && cd gromacs-2025.2 \
-    && mkdir build && cd build \
-    && cmake .. \
-        -DGMX_BUILD_OWN_FFTW=ON \
-        -DGMX_GPU=CUDA \
-        -DCUDAToolkit_ROOT=/usr/local/cuda \
-        -DGMX_CUDA_TARGET_SM=90 \
-        -DGMX_SIMD=AVX_512 \
-    && make -j"$(nproc)" \
-    && make install \
-    && cd / \
-    && rm -rf "$d"
-
 # ---------- lunus ----------
 RUN mkdir -p /opt/packages \
     && cd /opt/packages \
@@ -109,8 +98,8 @@ RUN mkdir -p /opt/packages \
     && cd lunus \
     && scons enable-openmp=True
 
-# ---------- cleanup: remove build-only packages + caches ----------
-RUN $MAMBA_EXE remove -n lunus -y scons cmake \
+# ---------- cleanup: drop the lunus-only build tool + caches (keep cmake for GROMACS) ----------
+RUN $MAMBA_EXE remove -n lunus -y scons \
     && $MAMBA_EXE clean -afy \
     && find /opt/micromamba -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null; \
     find /opt/micromamba -name "*.pyc" -delete 2>/dev/null; \
@@ -130,19 +119,10 @@ RUN apt-get update \
     && mkdir -p /home/dev/.config/ChimeraX
 
 # ---------- shell init (minimal) ----------
-# Runs as root by default (see end of file); downstream images (e.g. Dockerfile.astera) own the
-# general user environment. Put the micromamba hook in the *global* bashrc so `micromamba activate`
-# works for root and for any UID supplied via `docker run --user ...` (skel only covers new users).
+# Runs as root by default (see end of file); downstream images (Dockerfile.actl) own the
+# general user environment. Put the micromamba hook in the *global* bashrc so `micromamba
+# activate` works for root and for any UID supplied via `docker run --user ...`.
 RUN printf '\n# Enable `micromamba activate` in interactive shells\neval "$(micromamba shell hook --shell bash)"\n' >> /etc/bash.bashrc
-
-# ---------- md-workflows ----------
-# Ship md-workflows in the lunus env so Hub users need not pip install / extend PATH.
-# Placed late so code edits don't invalidate the expensive conda/GROMACS layers.
-COPY pyproject.toml /opt/md-workflows/pyproject.toml
-COPY md_workflows /opt/md-workflows/md_workflows
-RUN /opt/micromamba/envs/lunus/bin/python -m pip install --no-cache-dir /opt/md-workflows
-
-ENV PATH="/opt/micromamba/bin:/opt/micromamba/envs/lunus/bin:/usr/local/gromacs/bin:${PATH}"
 
 # ---------- GPU runtime metadata (placed late so it doesn't bust the build cache) ----------
 # Do NOT auto-claim GPUs. The base nvidia/cuda image sets NVIDIA_VISIBLE_DEVICES=all, which under
@@ -153,10 +133,9 @@ ENV NVIDIA_VISIBLE_DEVICES=void
 # Capabilities to mount when a GPU *is* granted (harmless when none is).
 ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility
 
-# Run as root by default. No baked non-root user: downstream images (Dockerfile.astera) run as root,
+# Run as root by default. No baked non-root user: downstream images (Dockerfile.actl) run as root,
 # and the standalone README workflow overrides identity with `docker run --user "$(id -u):$(id -g)"`.
 # /opt artifacts stay root-owned at default perms, so they remain readable/executable by any UID.
-# A dedicated user can be added later if a use case needs one.
 WORKDIR /workspace
 SHELL ["/bin/bash", "-c"]
 CMD ["bash"]

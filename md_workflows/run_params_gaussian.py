@@ -13,6 +13,7 @@ import os
 import subprocess
 import textwrap
 from pathlib import Path
+
 from .pdb_file_processing import prepare_pdb_and_resn_files
 
 
@@ -94,43 +95,103 @@ def _run_gaussian_esp(resn: str, nproc: int):
 
 def _process_resp_charges(resn: str):
     """Derive RESP charges from Gaussian output and correct net charge."""
-    subprocess.run([
-        "antechamber", "-fi", "gout",
-        "-i", f"{resn}_resp.log",
-        "-cf", f"{resn}_resp.crg",
-        "-c", "resp",
-        "-o", f"{resn}_gauss.ac", "-fo", "ac", "-rn", resn,
-    ], check=True)
+    subprocess.run(
+        [
+            "antechamber",
+            "-fi",
+            "gout",
+            "-i",
+            f"{resn}_resp.log",
+            "-cf",
+            f"{resn}_resp.crg",
+            "-c",
+            "resp",
+            "-o",
+            f"{resn}_gauss.ac",
+            "-fo",
+            "ac",
+            "-rn",
+            resn,
+        ],
+        check=True,
+    )
 
-    subprocess.run([
-        "antechamber", "-fi", "gout",
-        "-i", f"{resn}_resp.log",
-        "-o", f"{resn}_gauss.pdb", "-fo", "pdb", "-rn", resn,
-    ], check=True)
+    subprocess.run(
+        [
+            "antechamber",
+            "-fi",
+            "gout",
+            "-i",
+            f"{resn}_resp.log",
+            "-o",
+            f"{resn}_gauss.pdb",
+            "-fo",
+            "pdb",
+            "-rn",
+            resn,
+        ],
+        check=True,
+    )
 
     orig_coords = _extract_coords_from_pdb(f"{resn}.pdb")
     _graft_coords_to_ac(f"{resn}_gauss.ac", orig_coords, f"{resn}_resp.ac")
     _correct_charge(f"{resn}_resp.ac")
 
-    subprocess.run([
-        "antechamber", "-fi", "ac", "-i", f"{resn}_resp.ac",
-        "-fo", "mol2", "-o", f"{resn}_resp.mol2", "-rn", resn,
-    ], check=True)
+    subprocess.run(
+        [
+            "antechamber",
+            "-fi",
+            "ac",
+            "-i",
+            f"{resn}_resp.ac",
+            "-fo",
+            "mol2",
+            "-o",
+            f"{resn}_resp.mol2",
+            "-rn",
+            resn,
+        ],
+        check=True,
+    )
 
-    subprocess.run([
-        "atomtype", "-i", f"{resn}_resp.ac",
-        "-o", f"{resn}_resp_gaff.ac", "-p", "gaff",
-    ], check=True)
+    subprocess.run(
+        [
+            "atomtype",
+            "-i",
+            f"{resn}_resp.ac",
+            "-o",
+            f"{resn}_resp_gaff.ac",
+            "-p",
+            "gaff",
+        ],
+        check=True,
+    )
 
-    subprocess.run([
-        "prepgen", "-i", f"{resn}_resp_gaff.ac",
-        "-o", f"{resn}_resp_gaff.prepc", "-f", "car",
-    ], check=True)
+    subprocess.run(
+        [
+            "prepgen",
+            "-i",
+            f"{resn}_resp_gaff.ac",
+            "-o",
+            f"{resn}_resp_gaff.prepc",
+            "-f",
+            "car",
+        ],
+        check=True,
+    )
 
-    subprocess.run([
-        "parmchk2", "-i", f"{resn}_resp_gaff.prepc",
-        "-o", f"{resn}_resp.frcmod", "-f", "prepc",
-    ], check=True)
+    subprocess.run(
+        [
+            "parmchk2",
+            "-i",
+            f"{resn}_resp_gaff.prepc",
+            "-o",
+            f"{resn}_resp.frcmod",
+            "-f",
+            "prepc",
+        ],
+        check=True,
+    )
 
 
 def _extract_coords_from_pdb(pdb_file: str) -> list[str]:
@@ -208,11 +269,24 @@ def _run_parameterization(resn: str, g16root: str, nproc: int):
     if os.path.exists(g16_profile):
         subprocess.run(["bash", "-c", f"source {g16_profile}"], check=True)
 
-    subprocess.run([
-        "antechamber", "-fi", "pdb", "-fo", "gcrt",
-        "-i", f"{resn}.pdb", "-o", f"{resn}.gau",
-        "-nc", "-2", "-m", "1",
-    ], check=True)
+    subprocess.run(
+        [
+            "antechamber",
+            "-fi",
+            "pdb",
+            "-fo",
+            "gcrt",
+            "-i",
+            f"{resn}.pdb",
+            "-o",
+            f"{resn}.gau",
+            "-nc",
+            "-2",
+            "-m",
+            "1",
+        ],
+        check=True,
+    )
 
     _patch_gaussian_input(resn, nproc)
     _run_gaussian_opt(resn, nproc)
@@ -236,7 +310,6 @@ def run(
         _run_parameterization(resn, g16root, nproc)
     finally:
         os.chdir(base_dir)
-
 
 
 if __name__ == "__main__":

@@ -1,0 +1,73 @@
+name: CI
+
+# Cheap, hosted-runner checks for every push/PR. Deliberately does NOT build or push images:
+# the expensive GROMACS/CUDA builds run only in build-images.yml (on the Astera infra branch,
+# on push/dispatch/tags — never on pull_request), so fork PRs can't trigger heavy compute.
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: ['**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint Python code
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install linters
+        run: |
+          python -m pip install --upgrade pip
+          pip install '.[dev]'
+
+      - name: Run ruff lint check
+        run: ruff check md_workflows
+
+      - name: Run ruff format check
+        run: ruff format --check md_workflows
+
+  build-check:
+    name: Dockerfile build checks (no push)
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Validate Dockerfiles with buildx --check
+        # `--check` lints/validates each Dockerfile (syntax, build args, reserved words) without
+        # executing any build step or pulling real bases. Placeholder build-args satisfy the
+        # chained `FROM ${BASE_IMAGE}`/`${GROMACS_IMAGE}` so the graph resolves. Runs against
+        # whichever stages are present on the branch (base+gromacs on main; +actl on astera).
+        run: |
+          set -e
+          for f in Dockerfile.base Dockerfile.gromacs Dockerfile.actl; do
+            if [ ! -f "$f" ]; then
+              echo "skip $f (not present on this branch)"
+              continue
+            fi
+            echo "::group::buildx --check $f"
+            docker buildx build --check \
+              --build-arg BASE_IMAGE=scratch \
+              --build-arg GROMACS_IMAGE=scratch \
+              -f "$f" .
+            echo "::endgroup::"
+          done

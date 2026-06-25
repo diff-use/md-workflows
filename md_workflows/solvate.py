@@ -6,7 +6,6 @@ Corresponds to run_all.sh line:
 
 import re
 import subprocess
-from pathlib import Path
 
 
 def run():
@@ -24,6 +23,7 @@ def run():
     _finalize_topology(ncopies, nwat, ncl, nna)
 
     import shutil
+
     shutil.copy("xtal_solv_cl_na.pdb", "md_model.pdb")
 
 
@@ -111,23 +111,41 @@ def _compute_ion_counts(nwat: int, net_ion_charge: int) -> tuple[int, int]:
 
 
 def _insert_ions(ncl: int, nna: int):
-    subprocess.run([
-        "gmx", "insert-molecules",
-        "-f", "xtal_solv.pdb",
-        "-ci", "Cl-.pdb",
-        "-o", "xtal_solv_cl.pdb",
-        "-replace", "SOL",
-        "-nmol", str(ncl),
-    ], check=True)
+    subprocess.run(
+        [
+            "gmx",
+            "insert-molecules",
+            "-f",
+            "xtal_solv.pdb",
+            "-ci",
+            "Cl-.pdb",
+            "-o",
+            "xtal_solv_cl.pdb",
+            "-replace",
+            "SOL",
+            "-nmol",
+            str(ncl),
+        ],
+        check=True,
+    )
 
-    subprocess.run([
-        "gmx", "insert-molecules",
-        "-f", "xtal_solv_cl.pdb",
-        "-ci", "Na+.pdb",
-        "-o", "xtal_solv_cl_na.pdb",
-        "-replace", "SOL",
-        "-nmol", str(nna),
-    ], check=True)
+    subprocess.run(
+        [
+            "gmx",
+            "insert-molecules",
+            "-f",
+            "xtal_solv_cl.pdb",
+            "-ci",
+            "Na+.pdb",
+            "-o",
+            "xtal_solv_cl_na.pdb",
+            "-replace",
+            "SOL",
+            "-nmol",
+            str(nna),
+        ],
+        check=True,
+    )
 
 
 def _count_final_water() -> int:

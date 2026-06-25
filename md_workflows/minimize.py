@@ -10,21 +10,38 @@ from pathlib import Path
 
 def run(ntomp: int = 26):
     artifacts_dir = Path("artifacts")
-    subprocess.run([
-        "gmx", "grompp",
-        "-f", str(artifacts_dir / "min.mdp"),
-        "-c", "md_model.pdb",
-        "-o", "md_min.tpr",
-        "-p", "md_model.top",
-    ], capture_output=True, text=True, check=True)
+    subprocess.run(
+        [
+            "gmx",
+            "grompp",
+            "-f",
+            str(artifacts_dir / "min.mdp"),
+            "-c",
+            "md_model.pdb",
+            "-o",
+            "md_min.tpr",
+            "-p",
+            "md_model.top",
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
 
-    subprocess.run([
-        "gmx", "mdrun",
-        "-ntmpi", "1",
-        "-ntomp", str(ntomp),
-        "-deffnm", "md_min",
-        "-v",
-    ], check=True)
+    subprocess.run(
+        [
+            "gmx",
+            "mdrun",
+            "-ntmpi",
+            "1",
+            "-ntomp",
+            str(ntomp),
+            "-deffnm",
+            "md_min",
+            "-v",
+        ],
+        check=True,
+    )
 
 
 if __name__ == "__main__":
