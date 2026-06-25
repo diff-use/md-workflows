@@ -4,8 +4,6 @@ Corresponds to run_all.sh line:
   bash scripts/make_crystal.sh 1
 """
 
-import os
-import re
 import subprocess
 from pathlib import Path
 
@@ -53,8 +51,9 @@ def _prepend_cryst1(source_pdb: str, target_pdb: str):
         lines = fh.readlines()
 
     filtered = [
-        l for l in lines
-        if "Na+" not in l and "Cl-" not in l and not l.startswith("CRYST1")
+        line
+        for line in lines
+        if "Na+" not in line and "Cl-" not in line and not line.startswith("CRYST1")
     ]
 
     with open(target_pdb, "w") as fh:
@@ -99,12 +98,25 @@ def _set_p1_spacegroup(dry_pdb: str, cell_pdb: str):
 def _propagate_crystal(ix: int, iy: int, iz: int):
     """Use PropPDB to replicate the unit cell, or just copy if 0."""
     if ix > 0 or iy > 0 or iz > 0:
-        subprocess.run([
-            "PropPDB", "-p", "prot_dry_cell.pdb", "-o", "xtal.pdb",
-            "-ix", str(ix), "-iy", str(iy), "-iz", str(iz),
-        ], check=True)
+        subprocess.run(
+            [
+                "PropPDB",
+                "-p",
+                "prot_dry_cell.pdb",
+                "-o",
+                "xtal.pdb",
+                "-ix",
+                str(ix),
+                "-iy",
+                str(iy),
+                "-iz",
+                str(iz),
+            ],
+            check=True,
+        )
     else:
         import shutil
+
         shutil.copy("prot_dry_cell.pdb", "xtal.pdb")
 
 

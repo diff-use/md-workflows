@@ -5,14 +5,16 @@ from __future__ import annotations
 import argparse
 import sys
 
-from . import equilibrate
-from . import make_crystal
-from . import make_waterbox
-from . import minimize
-from . import param_prot
-from . import resolvate
-from . import run_params_gaussian
-from . import solvate
+from . import (
+    equilibrate,
+    make_crystal,
+    make_waterbox,
+    minimize,
+    param_prot,
+    resolvate,
+    run_params_gaussian,
+    solvate,
+)
 
 
 def _single_command_cli(command: str) -> None:

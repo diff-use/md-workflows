@@ -52,31 +52,49 @@ def _create_box_pdb(workdir: Path, wb_dir: Path):
 
 
 def _insert_water(workdir: Path, wb_dir: Path):
-    subprocess.run([
-        "gmx", "insert-molecules",
-        "-f", str(wb_dir / "box.pdb"),
-        "-ci", str(workdir / "WAT.pdb"),
-        "-conc", "58.0",
-        "-o", str(wb_dir / "box_solv.pdb"),
-    ], capture_output=True, text=True, cwd=str(wb_dir), check=True)
+    subprocess.run(
+        [
+            "gmx",
+            "insert-molecules",
+            "-f",
+            str(wb_dir / "box.pdb"),
+            "-ci",
+            str(workdir / "WAT.pdb"),
+            "-conc",
+            "58.0",
+            "-o",
+            str(wb_dir / "box_solv.pdb"),
+        ],
+        capture_output=True,
+        text=True,
+        cwd=str(wb_dir),
+        check=True,
+    )
 
 
 def _expand_waterbox(workdir: Path, wb_dir: Path):
-    subprocess.run([
-        "PropPDB",
-        "-p", str(wb_dir / "box_solv.pdb"),
-        "-o", str(wb_dir / "box_solv_expand.pdb"),
-        "-ix", "10", "-iy", "10", "-iz", "10",
-    ], check=True)
+    subprocess.run(
+        [
+            "PropPDB",
+            "-p",
+            str(wb_dir / "box_solv.pdb"),
+            "-o",
+            str(wb_dir / "box_solv_expand.pdb"),
+            "-ix",
+            "10",
+            "-iy",
+            "10",
+            "-iz",
+            "10",
+        ],
+        check=True,
+    )
 
     with open(wb_dir / "cryst1_xtal.pdb") as fh:
         cryst1 = fh.read()
 
     with open(wb_dir / "box_solv_expand.pdb") as fh:
-        lines = [
-            l for l in fh
-            if not l.startswith(("CRYST1", "HEADER"))
-        ]
+        lines = [line for line in fh if not line.startswith(("CRYST1", "HEADER"))]
 
     with open(wb_dir / "box_solv_expand.pdb", "w") as fh:
         fh.write(cryst1)
@@ -91,9 +109,7 @@ def _count_wat_molecules(pdb_path: Path) -> int:
             if line.startswith(("ATOM", "HETATM")) and " WAT " in line:
                 wat_atoms += 1
     if wat_atoms % 3 != 0:
-        raise ValueError(
-            f"{pdb_path}: expected multiple of 3 WAT atoms, got {wat_atoms}"
-        )
+        raise ValueError(f"{pdb_path}: expected multiple of 3 WAT atoms, got {wat_atoms}")
     return wat_atoms // 3
 
 
@@ -113,35 +129,73 @@ def _write_topology(workdir: Path, wb_dir: Path, nwat: int):
 
 
 def _minimize_waterbox(artifacts_dir: Path, wb_dir: Path, ntomp: int):
-    subprocess.run([
-        "gmx", "grompp",
-        "-f", str(artifacts_dir / "min_water.mdp"),
-        "-c", str(wb_dir / "box_solv_expand.pdb"),
-        "-o", str(wb_dir / "water_min.tpr"),
-        "-p", str(wb_dir / "waterbox.top"),
-    ], cwd=str(wb_dir), check=True)
+    subprocess.run(
+        [
+            "gmx",
+            "grompp",
+            "-f",
+            str(artifacts_dir / "min_water.mdp"),
+            "-c",
+            str(wb_dir / "box_solv_expand.pdb"),
+            "-o",
+            str(wb_dir / "water_min.tpr"),
+            "-p",
+            str(wb_dir / "waterbox.top"),
+        ],
+        cwd=str(wb_dir),
+        check=True,
+    )
 
-    subprocess.run([
-        "gmx", "mdrun",
-        "-ntmpi", "1", "-ntomp", str(ntomp),
-        "-deffnm", "water_min", "-v",
-    ], cwd=str(wb_dir), check=True)
+    subprocess.run(
+        [
+            "gmx",
+            "mdrun",
+            "-ntmpi",
+            "1",
+            "-ntomp",
+            str(ntomp),
+            "-deffnm",
+            "water_min",
+            "-v",
+        ],
+        cwd=str(wb_dir),
+        check=True,
+    )
 
 
 def _equilibrate_waterbox(artifacts_dir: Path, wb_dir: Path, ntomp: int):
-    subprocess.run([
-        "gmx", "grompp",
-        "-f", str(artifacts_dir / "equil_water.mdp"),
-        "-c", str(wb_dir / "water_min.gro"),
-        "-o", str(wb_dir / "water_equil.tpr"),
-        "-p", str(wb_dir / "waterbox.top"),
-    ], cwd=str(wb_dir), check=True)
+    subprocess.run(
+        [
+            "gmx",
+            "grompp",
+            "-f",
+            str(artifacts_dir / "equil_water.mdp"),
+            "-c",
+            str(wb_dir / "water_min.gro"),
+            "-o",
+            str(wb_dir / "water_equil.tpr"),
+            "-p",
+            str(wb_dir / "waterbox.top"),
+        ],
+        cwd=str(wb_dir),
+        check=True,
+    )
 
-    subprocess.run([
-        "gmx", "mdrun",
-        "-ntmpi", "1", "-ntomp", str(ntomp),
-        "-deffnm", "water_equil", "-v",
-    ], cwd=str(wb_dir), check=True)
+    subprocess.run(
+        [
+            "gmx",
+            "mdrun",
+            "-ntmpi",
+            "1",
+            "-ntomp",
+            str(ntomp),
+            "-deffnm",
+            "water_equil",
+            "-v",
+        ],
+        cwd=str(wb_dir),
+        check=True,
+    )
 
 
 if __name__ == "__main__":

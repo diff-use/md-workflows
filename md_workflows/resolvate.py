@@ -20,11 +20,18 @@ def run(ntmpi: int = 8, ntomp: int = 1):
 def _compute_maxsol() -> int:
     """Do a trial solvation to figure out 25 % fill."""
     result = subprocess.run(
-        ["gmx", "solvate",
-         "-cp", "md_equil.gro",
-         "-cs", "waterbox/water_equil.gro",
-         "-o", "tmp.pdb"],
-        capture_output=True, text=True,
+        [
+            "gmx",
+            "solvate",
+            "-cp",
+            "md_equil.gro",
+            "-cs",
+            "waterbox/water_equil.gro",
+            "-o",
+            "tmp.pdb",
+        ],
+        capture_output=True,
+        text=True,
     )
     log_text = result.stdout + result.stderr
     with open("gmx_solvate.log", "w") as fh:
@@ -39,12 +46,21 @@ def _compute_maxsol() -> int:
 
 def _resolvate(maxsol: int):
     result = subprocess.run(
-        ["gmx", "solvate",
-         "-cp", "md_equil.gro",
-         "-cs", "waterbox/water_equil.gro",
-         "-o", "md_resolv.pdb",
-         "-maxsol", str(maxsol)],
-        capture_output=True, text=True, check=True,
+        [
+            "gmx",
+            "solvate",
+            "-cp",
+            "md_equil.gro",
+            "-cs",
+            "waterbox/water_equil.gro",
+            "-o",
+            "md_resolv.pdb",
+            "-maxsol",
+            str(maxsol),
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
     )
     with open("gmx_resolvate.log", "w") as fh:
         fh.write(result.stdout + result.stderr)
@@ -57,42 +73,78 @@ def _update_topology(maxsol: int):
 
 def _minimize(ntmpi: int, ntomp: int):
     artifacts_dir = Path("artifacts")
-    subprocess.run([
-        "gmx", "grompp",
-        "-f", str(artifacts_dir / "min.mdp"),
-        "-c", "md_resolv.pdb",
-        "-o", "md_resolv_min.tpr",
-        "-p", "md_model_posre.top",
-    ], capture_output=True, text=True, check=True)
+    subprocess.run(
+        [
+            "gmx",
+            "grompp",
+            "-f",
+            str(artifacts_dir / "min.mdp"),
+            "-c",
+            "md_resolv.pdb",
+            "-o",
+            "md_resolv_min.tpr",
+            "-p",
+            "md_model_posre.top",
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
 
-    subprocess.run([
-        "gmx", "mdrun",
-        "-ntmpi", str(ntmpi),
-        "-ntomp", str(ntomp),
-        "-deffnm", "md_resolv_min",
-        "-v",
-    ], check=True)
+    subprocess.run(
+        [
+            "gmx",
+            "mdrun",
+            "-ntmpi",
+            str(ntmpi),
+            "-ntomp",
+            str(ntomp),
+            "-deffnm",
+            "md_resolv_min",
+            "-v",
+        ],
+        check=True,
+    )
 
 
 def _equilibrate(ntmpi: int, ntomp: int):
     artifacts_dir = Path("artifacts")
-    subprocess.run([
-        "gmx", "grompp",
-        "-f", str(artifacts_dir / "equil.mdp"),
-        "-c", "md_resolv_min.gro",
-        "-o", "md_resolv_equil.tpr",
-        "-p", "md_model_posre.top",
-        "-r", "md_model.pdb",
-        "-maxwarn", "2",
-    ], capture_output=True, text=True, check=True)
+    subprocess.run(
+        [
+            "gmx",
+            "grompp",
+            "-f",
+            str(artifacts_dir / "equil.mdp"),
+            "-c",
+            "md_resolv_min.gro",
+            "-o",
+            "md_resolv_equil.tpr",
+            "-p",
+            "md_model_posre.top",
+            "-r",
+            "md_model.pdb",
+            "-maxwarn",
+            "2",
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
 
-    subprocess.run([
-        "gmx", "mdrun",
-        "-ntmpi", str(ntmpi),
-        "-ntomp", str(ntomp),
-        "-deffnm", "md_resolv_equil",
-        "-v",
-    ], check=True)
+    subprocess.run(
+        [
+            "gmx",
+            "mdrun",
+            "-ntmpi",
+            str(ntmpi),
+            "-ntomp",
+            str(ntomp),
+            "-deffnm",
+            "md_resolv_equil",
+            "-v",
+        ],
+        check=True,
+    )
 
 
 if __name__ == "__main__":

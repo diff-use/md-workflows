@@ -7,6 +7,7 @@ Corresponds to run_all.sh line:
 import subprocess
 import textwrap
 from pathlib import Path
+
 from .pdb_file_processing import ensure_entry_pdb_file
 
 
@@ -35,9 +36,17 @@ def _clean_pdb(pdb_id: str):
     with open("pdb_clean.pdb", "w") as fh:
         fh.writelines(kept)
 
-    subprocess.run([
-        "pdb4amber", "-i", "pdb_clean.pdb", "--prot", "-o", "pdb_clean_amber.pdb",
-    ], check=True)
+    subprocess.run(
+        [
+            "pdb4amber",
+            "-i",
+            "pdb_clean.pdb",
+            "--prot",
+            "-o",
+            "pdb_clean_amber.pdb",
+        ],
+        check=True,
+    )
 
 
 def _initial_solvation():
@@ -86,11 +95,11 @@ def _extract_solvent_pdbs():
     with open("prot.pdb") as fh:
         lines = fh.readlines()
 
-    hetatm_lines = [l for l in lines if l.startswith("HETATM")]
+    hetatm_lines = [line for line in lines if line.startswith("HETATM")]
 
-    na_lines = [l for l in hetatm_lines if "Na+" in l]
-    cl_lines = [l for l in hetatm_lines if "Cl-" in l]
-    wat_lines = [l for l in hetatm_lines if "WAT" in l]
+    na_lines = [line for line in hetatm_lines if "Na+" in line]
+    cl_lines = [line for line in hetatm_lines if "Cl-" in line]
+    wat_lines = [line for line in hetatm_lines if "WAT" in line]
 
     if na_lines:
         with open("Na+.pdb", "w") as fh:

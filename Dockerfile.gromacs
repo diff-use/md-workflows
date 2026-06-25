@@ -1,0 +1,60 @@
+# ==================== md-workflows GROMACS + app (stage 2 of 3) ====================
+# Builds GROMACS on top of Dockerfile.base, then installs the md-workflows package. This is
+# the deliberately *non-portable* stage: the GPU/CPU-architecture choices below are tuned for
+# Astera's Voltage Park nodes (H100 GPUs, AVX-512 Xeon Platinum). Forks targeting other
+# hardware should only need to override the GMX_* build args (or this single file) without
+# touching the base image:
+#   --build-arg GMX_CUDA_TARGET_SM=80   (A100)
+#   --build-arg GMX_GPU=OpenCL          (non-NVIDIA)
+#   --build-arg GMX_SIMD=AVX2_256       (older / non-AVX-512 CPUs)
+#
+# Build (after building md-base:local from Dockerfile.base):
+#   docker build -f Dockerfile.gromacs --build-arg BASE_IMAGE=md-base:local -t md-gromacs:local .
+ARG BASE_IMAGE=md-base:local
+FROM ${BASE_IMAGE}
+
+# ---------- GROMACS build configuration (override these on a fork) ----------
+ARG GMX_VERSION=2025.2
+ARG GMX_GPU=CUDA
+ARG GMX_CUDA_TARGET_SM=90
+ARG GMX_SIMD=AVX_512
+
+# ---------- GROMACS (CUDA build, targeting H100 / sm_90) ----------
+# GMX_SIMD is pinned (default AVX_512, which Voltage Park Xeon Platinum supports) instead of
+# letting CMake auto-detect from the build host: under QEMU emulation detection falls back to
+# SSE4.1, which would cripple CPU-side kernels. Pinning makes the CPU SIMD deployment-correct
+# regardless of build host. cmake comes from the base conda env and is removed below afterward.
+RUN set -ex \
+    && d=$(mktemp -d) \
+    && cd "$d" \
+    && wget https://ftp.gromacs.org/gromacs/gromacs-${GMX_VERSION}.tar.gz \
+    && tar xfz gromacs-${GMX_VERSION}.tar.gz \
+    && cd gromacs-${GMX_VERSION} \
+    && mkdir build && cd build \
+    && cmake .. \
+        -DGMX_BUILD_OWN_FFTW=ON \
+        -DGMX_GPU=${GMX_GPU} \
+        -DCUDAToolkit_ROOT=/usr/local/cuda \
+        -DGMX_CUDA_TARGET_SM=${GMX_CUDA_TARGET_SM} \
+        -DGMX_SIMD=${GMX_SIMD} \
+    && make -j"$(nproc)" \
+    && make install \
+    && cd / \
+    && rm -rf "$d"
+
+# ---------- cleanup: drop the GROMACS-only build tool + caches ----------
+RUN $MAMBA_EXE remove -n lunus -y cmake \
+    && $MAMBA_EXE clean -afy
+
+# ---------- md-workflows ----------
+# Ship md-workflows in the lunus env so users need not pip install / extend PATH. Placed last
+# (downstream of the expensive GROMACS layer) so code edits don't invalidate GROMACS or base.
+COPY pyproject.toml /opt/md-workflows/pyproject.toml
+COPY md_workflows /opt/md-workflows/md_workflows
+RUN /opt/micromamba/envs/lunus/bin/python -m pip install --no-cache-dir /opt/md-workflows
+
+ENV PATH="/opt/micromamba/bin:/opt/micromamba/envs/lunus/bin:/usr/local/gromacs/bin:${PATH}"
+
+WORKDIR /workspace
+SHELL ["/bin/bash", "-c"]
+CMD ["bash"]

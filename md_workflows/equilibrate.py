@@ -7,7 +7,6 @@ Corresponds to run_all.sh line:
 import glob
 import os
 import subprocess
-import tempfile
 from pathlib import Path
 
 
@@ -18,22 +17,40 @@ def run(ntomp: int = 26):
     _generate_restraints(chain_files)
     _build_restrained_topology(chain_files)
 
-    subprocess.run([
-        "gmx", "grompp",
-        "-f", str(artifacts_dir / "equil.mdp"),
-        "-c", "md_min.gro",
-        "-o", "md_equil.tpr",
-        "-p", "md_model_posre.top",
-        "-r", "md_model.pdb",
-    ], capture_output=True, text=True, check=True)
+    subprocess.run(
+        [
+            "gmx",
+            "grompp",
+            "-f",
+            str(artifacts_dir / "equil.mdp"),
+            "-c",
+            "md_min.gro",
+            "-o",
+            "md_equil.tpr",
+            "-p",
+            "md_model_posre.top",
+            "-r",
+            "md_model.pdb",
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
 
-    subprocess.run([
-        "gmx", "mdrun",
-        "-ntmpi", "1",
-        "-ntomp", str(ntomp),
-        "-deffnm", "md_equil",
-        "-v",
-    ], check=True)
+    subprocess.run(
+        [
+            "gmx",
+            "mdrun",
+            "-ntmpi",
+            "1",
+            "-ntomp",
+            str(ntomp),
+            "-deffnm",
+            "md_equil",
+            "-v",
+        ],
+        check=True,
+    )
 
 
 def _extract_first_copy():
@@ -41,7 +58,7 @@ def _extract_first_copy():
     with open("pdb_clean.pdb") as fh:
         lines = fh.readlines()
 
-    lines = [l for l in lines if not l.startswith("JRNL")]
+    lines = [line for line in lines if not line.startswith("JRNL")]
 
     kept = []
     found_gol = False
@@ -60,8 +77,7 @@ def _extract_first_copy():
         fh.writelines(kept)
 
     prot_lines = [
-        l for l in kept
-        if (l.startswith(("ATOM", "HETATM", "TER")) and "GOL" not in l)
+        line for line in kept if (line.startswith(("ATOM", "HETATM", "TER")) and "GOL" not in line)
     ]
     with open("first_copy_prot.pdb", "w") as fh:
         fh.writelines(prot_lines)
@@ -102,8 +118,18 @@ def _generate_restraints(chain_files: list[str]):
     for f in chain_files:
         subprocess.run(["pdb4amber", "-i", f, "-o", f"{f}_amber.pdb"], check=True)
         subprocess.run(
-            ["gmx", "genrestr", "-fc", "209.2", "209.2", "209.2",
-             "-f", f"{f}_amber.pdb", "-o", f"posre_{f}.itp"],
+            [
+                "gmx",
+                "genrestr",
+                "-fc",
+                "209.2",
+                "209.2",
+                "209.2",
+                "-f",
+                f"{f}_amber.pdb",
+                "-o",
+                f"posre_{f}.itp",
+            ],
             input="Protein-H\nq\n",
             text=True,
             check=True,
@@ -113,6 +139,7 @@ def _generate_restraints(chain_files: list[str]):
 def _build_restrained_topology(chain_files: list[str]):
     """Insert #ifdef POSRES_partXX blocks into md_model_posre.top."""
     import shutil
+
     shutil.copy("md_model.top", "md_model_posre.top")
 
     for molnum_offset, f in enumerate(chain_files):
@@ -127,11 +154,7 @@ def _build_restrained_topology(chain_files: list[str]):
             if "moleculetype" in line.lower():
                 cnt += 1
                 if cnt == target_moltype_count:
-                    posre_block = (
-                        f'#ifdef POSRES_{f}\n'
-                        f'#include "posre_{f}.itp"\n'
-                        f'#endif\n\n'
-                    )
+                    posre_block = f'#ifdef POSRES_{f}\n#include "posre_{f}.itp"\n#endif\n\n'
                     new_lines.append(posre_block)
             new_lines.append(line)
 

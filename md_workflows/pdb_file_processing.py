@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
+import platform
 import urllib.request
 from collections import defaultdict
 from pathlib import Path
 from typing import TypedDict
-import platform
 
 
 class HeteroLigandHit(TypedDict):
@@ -19,22 +19,35 @@ class HeteroLigandHit(TypedDict):
     n_atoms: int
 
 
-_WATER_SOLVENT_RESNAMES = frozenset({
-    "HOH", "WAT", "SOL", "H2O", "DOD", "TIP", "TIP3", "SPC", "PE4", "P7G",
-})
+_WATER_SOLVENT_RESNAMES = frozenset(
+    {
+        "HOH",
+        "WAT",
+        "SOL",
+        "H2O",
+        "DOD",
+        "TIP",
+        "TIP3",
+        "SPC",
+        "PE4",
+        "P7G",
+    }
+)
 
-#Makes a GET request to the RCSB API and saves the response to a file.
+
+# Makes a GET request to the RCSB API and saves the response to a file.
 def rcsb_api_request(endpoint: str, out_path: Path) -> Path:
     base_url = "https://files.rcsb.org/"
     req = urllib.request.Request(
         url=f"{base_url}{endpoint}",
         data=None,
         headers={"User-Agent": f"{platform.node()} {platform.system()}"},
-        method="GET"
+        method="GET",
     )
     with urllib.request.urlopen(req, timeout=120) as resp:
         out_path.write_bytes(resp.read())
     return out_path
+
 
 def download_rcsb_legacy_pdb_and_find_ligands(
     pdb_id: str,
@@ -115,7 +128,9 @@ def find_ligands_in_legacy_pdb_text(
 
 
 def find_ligands_in_legacy_pdb_file(
-    path: Path | str, *, exclude_water_solvent: bool = True,
+    path: Path | str,
+    *,
+    exclude_water_solvent: bool = True,
 ) -> list[HeteroLigandHit]:
     """Read a legacy PDB file from disk and list hetero residues."""
     text = Path(path).read_text(encoding="ascii", errors="replace")

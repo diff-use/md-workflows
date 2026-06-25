@@ -2,7 +2,8 @@
 
 Matches the current shell script:
 
-1. ``run_params_gaussian`` (under ``ligand/``, same as ``cd ligand && bash ../run_params_gaussian.sh``)
+1. ``run_params_gaussian`` (under ``ligand/``, i.e. ``cd ligand && bash
+   ../run_params_gaussian.sh``)
 2. ``param_prot``
 3. ``make_crystal``
 4. ``make_waterbox``
@@ -61,10 +62,23 @@ def _cli() -> None:
         default="6B8X",
         help="PDB ID passed to param_prot (Coordinates file should be <ID>.pdb in cwd)",
     )
-    parser.add_argument("--ix", type=int, default=1, help="make_crystal supercell replication (x; also y/z if omitted)")
-    parser.add_argument("--iy", type=int, default=None, help="make_crystal y replication (optional)")
-    parser.add_argument("--iz", type=int, default=None, help="make_crystal z replication (optional)")
-    parser.add_argument("--chimerax-exec", default="/usr/bin/chimerax-daily", help="ChimeraX executable for make_crystal")
+    parser.add_argument(
+        "--ix",
+        type=int,
+        default=1,
+        help="make_crystal supercell replication (x; also y/z if omitted)",
+    )
+    parser.add_argument(
+        "--iy", type=int, default=None, help="make_crystal y replication (optional)"
+    )
+    parser.add_argument(
+        "--iz", type=int, default=None, help="make_crystal z replication (optional)"
+    )
+    parser.add_argument(
+        "--chimerax-exec",
+        default="/usr/bin/chimerax-daily",
+        help="ChimeraX executable for make_crystal",
+    )
 
     parser.add_argument("--resolv-ntmpi", type=int, default=8, help="resolvate gmx mdrun -ntmpi")
     parser.add_argument("--resolv-ntomp", type=int, default=1, help="resolvate gmx mdrun -ntomp")

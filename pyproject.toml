@@ -8,6 +8,13 @@ version = "0.1.0"
 description = "Molecular dynamics workflow orchestration scripts"
 requires-python = ">=3.10"
 
+[project.optional-dependencies]
+# Dev/CI tooling only — kept out of [project.dependencies] so it is not baked into the
+# runtime image. CI installs it via `pip install .[dev]` (or plain `pip install ruff`).
+dev = [
+    "ruff>=0.15.19",
+]
+
 [project.scripts]
 "md_workflows.param_prot" = "md_workflows.cli:param_prot_cli"
 "md_workflows.make_crystal" = "md_workflows.cli:make_crystal_cli"
@@ -21,3 +28,12 @@ requires-python = ">=3.10"
 
 [tool.setuptools]
 packages = ["md_workflows", "md_workflows.workflows"]
+
+[tool.ruff]
+# Pin the knobs so local runs and CI agree regardless of ruff's shifting defaults.
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+# pycodestyle errors/warnings, pyflakes, isort, pyupgrade, bugbear.
+select = ["E", "F", "W", "I", "UP", "B"]
