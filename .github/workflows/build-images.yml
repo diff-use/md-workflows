@@ -58,7 +58,7 @@ jobs:
   base:
     name: Build base
     needs: version
-    runs-on: [self-hosted, astera-sh-builder]
+    runs-on: [self-hosted, diffuse-sh-builder]
     environment: harbor
     outputs:
       digest: ${{ steps.build.outputs.digest }}
@@ -90,7 +90,7 @@ jobs:
   gromacs:
     name: Build gromacs
     needs: [version, base]
-    runs-on: [self-hosted, astera-sh-builder]
+    runs-on: [self-hosted, diffuse-sh-builder]
     environment: harbor
     outputs:
       digest: ${{ steps.build.outputs.digest }}
@@ -124,7 +124,7 @@ jobs:
   actl:
     name: Build actl (consumable)
     needs: [version, gromacs]
-    runs-on: [self-hosted, astera-sh-builder]
+    runs-on: [self-hosted, diffuse-sh-builder]
     environment: harbor
     outputs:
       digest: ${{ steps.build.outputs.digest }}
