@@ -1,12 +1,16 @@
 name: Build & push md-workflows images
 
-# Builds the three-stage image chain on the self-hosted Astera builder and pushes to Harbor.
+# Builds the three-stage image chain on the self-hosted diffuse builder and pushes to Harbor.
 #
 # Security: this workflow has NO pull_request trigger, so fork PRs can never reach the
 # self-hosted runner or the Harbor credentials. Heavy builds run only on push to `astera`
 # (path-filtered) and manual dispatch. Credentials live in the `harbor` GitHub Environment,
-# which must be restricted to the `astera` deployment branch; the `astera-sh-builder` runner
+# which must be restricted to the `astera` deployment branch; the `diffuse-sh-builder` runner
 # should sit in a runner group scoped to this repo. See the runbook in the PR description.
+#
+# NOTE: runs-on matches only the unique custom label `diffuse-sh-builder` (not `self-hosted`),
+# because that runner was registered with --no-default-labels and so lacks the implicit
+# `self-hosted` label. The custom label alone unambiguously targets it.
 on:
   push:
     branches: [astera]
@@ -58,7 +62,7 @@ jobs:
   base:
     name: Build base
     needs: version
-    runs-on: [self-hosted, diffuse-sh-builder]
+    runs-on: [diffuse-sh-builder]
     environment: harbor
     outputs:
       digest: ${{ steps.build.outputs.digest }}
@@ -90,7 +94,7 @@ jobs:
   gromacs:
     name: Build gromacs
     needs: [version, base]
-    runs-on: [self-hosted, diffuse-sh-builder]
+    runs-on: [diffuse-sh-builder]
     environment: harbor
     outputs:
       digest: ${{ steps.build.outputs.digest }}
@@ -124,7 +128,7 @@ jobs:
   actl:
     name: Build actl (consumable)
     needs: [version, gromacs]
-    runs-on: [self-hosted, diffuse-sh-builder]
+    runs-on: [diffuse-sh-builder]
     environment: harbor
     outputs:
       digest: ${{ steps.build.outputs.digest }}
