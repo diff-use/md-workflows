@@ -1,0 +1,8 @@
+# Large trajectory outputs should live on /mnt/diffuse-shared (or the pod home
+# PVC), not in the synced source checkout. Keep source-controlled templates such
+# as artifacts/*.mdp synced.
+*.cpt
+*.dcd
+*.edr
+*.trr
+*.xtc

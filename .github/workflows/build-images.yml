@@ -1,0 +1,163 @@
+name: Build & push md-workflows images
+
+# Builds the three-stage image chain on the self-hosted Astera builder and pushes to Harbor.
+#
+# Security: this workflow has NO pull_request trigger, so fork PRs can never reach the
+# self-hosted runner or the Harbor credentials. Heavy builds run only on push to `astera`
+# (path-filtered) and manual dispatch. Credentials live in the `harbor` GitHub Environment,
+# which must be restricted to the `astera` deployment branch; the `astera-sh-builder` runner
+# should sit in a runner group scoped to this repo. See the runbook in the PR description.
+on:
+  push:
+    branches: [astera]
+    paths:
+      - Dockerfile.base
+      - Dockerfile.gromacs
+      - Dockerfile.actl
+      - pyproject.toml
+      - md_workflows/**
+      - .github/workflows/build-images.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-images-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY: harbor.astera.sh
+  # base + gromacs (bake the non-redistributable ChimeraX) live in the proprietary project,
+  # distinguished by a stage tag prefix. The final consumable actl image lands in library.
+  PROPRIETARY_IMAGE: harbor.astera.sh/diffuse-proprietary/md-workflows
+  LIBRARY_IMAGE: harbor.astera.sh/library/md-workflows
+
+jobs:
+  version:
+    name: Compute version
+    runs-on: ubuntu-latest
+    outputs:
+      semver: ${{ steps.v.outputs.semver }}
+      build: ${{ steps.v.outputs.build }}
+      sha: ${{ steps.v.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        name: Derive version from pyproject.toml
+        run: |
+          set -euo pipefail
+          SEMVER=$(grep -m1 -E '^version[[:space:]]*=' pyproject.toml | sed -E 's/.*"([^"]+)".*/\1/')
+          if [ -z "${SEMVER}" ]; then echo "could not parse version from pyproject.toml" >&2; exit 1; fi
+          SHORT="${GITHUB_SHA::7}"
+          echo "semver=${SEMVER}"                       >> "$GITHUB_OUTPUT"
+          echo "build=${SEMVER}-b${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+          echo "sha=sha-${SHORT}"                       >> "$GITHUB_OUTPUT"
+          echo "Resolved: ${SEMVER} / ${SEMVER}-b${{ github.run_number }} / sha-${SHORT}"
+
+  base:
+    name: Build base
+    needs: version
+    runs-on: [self-hosted, diffuse-sh-builder]
+    environment: harbor
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Login to Harbor
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.HARBOR_USERNAME }}
+          password: ${{ secrets.HARBOR_PASSWORD }}
+      - id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.base
+          platforms: linux/amd64
+          push: true
+          provenance: false
+          tags: |
+            ${{ env.PROPRIETARY_IMAGE }}:base-${{ needs.version.outputs.semver }}
+            ${{ env.PROPRIETARY_IMAGE }}:base-${{ needs.version.outputs.build }}
+            ${{ env.PROPRIETARY_IMAGE }}:base-${{ needs.version.outputs.sha }}
+            ${{ env.PROPRIETARY_IMAGE }}:base
+          cache-from: type=registry,ref=${{ env.PROPRIETARY_IMAGE }}:base-buildcache
+          cache-to: type=registry,ref=${{ env.PROPRIETARY_IMAGE }}:base-buildcache,mode=max
+
+  gromacs:
+    name: Build gromacs
+    needs: [version, base]
+    runs-on: [self-hosted, diffuse-sh-builder]
+    environment: harbor
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Login to Harbor
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.HARBOR_USERNAME }}
+          password: ${{ secrets.HARBOR_PASSWORD }}
+      - id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.gromacs
+          platforms: linux/amd64
+          push: true
+          provenance: false
+          build-args: |
+            BASE_IMAGE=${{ env.PROPRIETARY_IMAGE }}@${{ needs.base.outputs.digest }}
+          tags: |
+            ${{ env.PROPRIETARY_IMAGE }}:gromacs-${{ needs.version.outputs.semver }}
+            ${{ env.PROPRIETARY_IMAGE }}:gromacs-${{ needs.version.outputs.build }}
+            ${{ env.PROPRIETARY_IMAGE }}:gromacs-${{ needs.version.outputs.sha }}
+            ${{ env.PROPRIETARY_IMAGE }}:gromacs
+          cache-from: type=registry,ref=${{ env.PROPRIETARY_IMAGE }}:gromacs-buildcache
+          cache-to: type=registry,ref=${{ env.PROPRIETARY_IMAGE }}:gromacs-buildcache,mode=max
+
+  actl:
+    name: Build actl (consumable)
+    needs: [version, gromacs]
+    runs-on: [self-hosted, diffuse-sh-builder]
+    environment: harbor
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Login to Harbor
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.HARBOR_USERNAME }}
+          password: ${{ secrets.HARBOR_PASSWORD }}
+      - id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.actl
+          platforms: linux/amd64
+          push: true
+          provenance: false
+          build-args: |
+            GROMACS_IMAGE=${{ env.PROPRIETARY_IMAGE }}@${{ needs.gromacs.outputs.digest }}
+          tags: |
+            ${{ env.LIBRARY_IMAGE }}:${{ needs.version.outputs.semver }}
+            ${{ env.LIBRARY_IMAGE }}:${{ needs.version.outputs.build }}
+            ${{ env.LIBRARY_IMAGE }}:${{ needs.version.outputs.sha }}
+            ${{ env.LIBRARY_IMAGE }}:actl
+            ${{ env.LIBRARY_IMAGE }}:latest
+          cache-from: type=registry,ref=${{ env.LIBRARY_IMAGE }}:actl-buildcache
+          cache-to: type=registry,ref=${{ env.LIBRARY_IMAGE }}:actl-buildcache,mode=max
+      - name: Report digests
+        run: |
+          echo "base    digest: ${{ needs.base.outputs.digest }}"  || true
+          echo "gromacs digest: ${{ needs.gromacs.outputs.digest }}"
+          echo "actl    digest: ${{ steps.build.outputs.digest }}"
+          echo "Published ${{ env.LIBRARY_IMAGE }}:${{ needs.version.outputs.build }}"
