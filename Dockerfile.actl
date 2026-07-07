@@ -26,6 +26,11 @@ ENV DEBIAN_FRONTEND=noninteractive \
     MAMBA_EXE=/opt/micromamba/bin/micromamba \
     CONDA_PREFIX=/opt/micromamba/envs/lunus \
     PYTHONPATH=/home/dev/workspace:/opt/md-workflows \
+    # actl pods run as root by convention; without these OpenMPI aborts mpirun.
+    # Kept out of the portable base/gromacs stages, where non-root --user runs
+    # are the norm and the root guard stays meaningful.
+    OMPI_ALLOW_RUN_AS_ROOT=1 \
+    OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1 \
     PATH="/opt/micromamba/bin:/opt/micromamba/envs/lunus/bin:/usr/local/gromacs/bin:${PATH}"
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
