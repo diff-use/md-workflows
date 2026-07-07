@@ -55,32 +55,41 @@ def standard_md_pipeline(
     *,
     resume: bool = False,
 ) -> PipelineResult:
-    """Run the full prep pipeline in ``workdir`` under ``cfg`` and return every result."""
+    """Run the full prep pipeline in ``workdir`` under ``cfg`` and return every result.
+
+    Inputs are resolved (and guarded, inside each step) immediately before that step
+    runs — validation stays interleaved with execution because each step consumes the
+    previous step's outputs, so it can't be hoisted ahead of the run.
+    """
     workdir = Path(workdir)
 
-    pp = param_prot_step.param_prot(param_prot_step.resolve_inputs(workdir, cfg), resume=resume)
-    mc = make_crystal_step.make_crystal(
-        make_crystal_step.resolve_inputs(workdir, cfg), cfg.crystal, resume=resume
-    )
+    pp_in = param_prot_step.resolve_inputs(workdir, cfg)
+    pp = param_prot_step.param_prot(pp_in, resume=resume)
+
+    mc_in = make_crystal_step.resolve_inputs(workdir, cfg)
+    mc = make_crystal_step.make_crystal(mc_in, cfg.crystal, resume=resume)
+
+    wb_in = make_waterbox_step.resolve_inputs(workdir, cfg)
     wb = make_waterbox_step.make_waterbox(
-        make_waterbox_step.resolve_inputs(workdir, cfg),
+        wb_in,
         cfg.waterbox,
         cfg.profile("waterbox_min"),
         cfg.profile("waterbox_equil"),
         resume=resume,
     )
-    sv = solvate_step.solvate(solvate_step.resolve_inputs(workdir, cfg), cfg.solvate, resume=resume)
-    mn = minimize_step.minimize(
-        minimize_step.resolve_inputs(workdir, cfg), cfg.profile("min"), resume=resume
-    )
-    eq = equilibrate_step.equilibrate(
-        equilibrate_step.resolve_inputs(workdir, cfg),
-        cfg.equilibrate,
-        cfg.profile("equil"),
-        resume=resume,
-    )
+
+    sv_in = solvate_step.resolve_inputs(workdir, cfg)
+    sv = solvate_step.solvate(sv_in, cfg.solvate, resume=resume)
+
+    mn_in = minimize_step.resolve_inputs(workdir, cfg)
+    mn = minimize_step.minimize(mn_in, cfg.profile("min"), resume=resume)
+
+    eq_in = equilibrate_step.resolve_inputs(workdir, cfg)
+    eq = equilibrate_step.equilibrate(eq_in, cfg.equilibrate, cfg.profile("equil"), resume=resume)
+
+    rv_in = resolvate_step.resolve_inputs(workdir, cfg)
     rv = resolvate_step.resolvate(
-        resolvate_step.resolve_inputs(workdir, cfg),
+        rv_in,
         cfg.resolvate,
         cfg.profile("resolv_min"),
         cfg.profile("resolv_equil"),
