@@ -52,25 +52,66 @@ docker run --rm -it \
   bash
 ```
 
-This registers the CLI entry points from `pyproject.toml`, including `md_workflows.mdmx`.
+This registers the single `md-workflows` CLI entry point from `pyproject.toml`.
 
-## 3) Run the full workflow command
+## 3) Run the workflow
 
-Inside the container shell:
+The CLI is one Typer app with a subcommand per step plus `run-pipeline`. Global options
+`--workdir/-w` (run directory), `--config/-c` (YAML/TOML), and `--resume/--force` come
+before the subcommand.
+
+Run the full prep pipeline (`param_prot → make_crystal → make_waterbox → solvate →
+minimize → equilibrate → resolvate`, ending with the adaptive pressure loop):
 
 ```bash
-md_workflows.mdmx \
-  --param-pdb-id 6B8X \
-  --ix 1 \
-  --ntomp 26 \
-  --resolv-ntmpi 8 \
-  --resolv-ntomp 1
+md-workflows --workdir . run-pipeline --pdb-id 4LZT --ix 5
 ```
 
-To see all available flags:
+Run a single step (each resolves its inputs from `--workdir` and fails loudly if any are
+missing):
 
 ```bash
-md_workflows.mdmx --help
+md-workflows -w . minimize
+md-workflows -w . resolvate --target-bar 1.0
+```
+
+Per-system settings live in a config file; flags override individual values. The
+dominant cross-machine knob is the per-invocation GROMACS `mdrun` profile
+(`run_profiles`, e.g. GPU offload + thread counts):
+
+```yaml
+# config.yaml
+pdb_id: 4LZT
+crystal: { ix: 5 }
+waterbox: { nc_scale: 5, conc: 60.0 }
+solvate: { ionic_strength: 0.1 }
+run_profiles:
+  equil: { ntomp: 16, nb: gpu, pme: gpu, bonded: gpu, tunepme: false }
+  min:   { ntomp: 16, nb: gpu, pme: cpu, bonded: cpu, tunepme: false }
+```
+
+```bash
+md-workflows -w run_dir -c config.yaml run-pipeline
+md-workflows -w run_dir -c config.yaml --resume run-pipeline   # skip completed steps
+```
+
+`--resume` skips a step whose durable outputs already exist. Exit codes: `0` ok,
+`1` domain error, `2` missing input, `3` external tool failed.
+
+### Python / SDK
+
+The same logic is importable:
+
+```python
+from md_workflows import run_standard_md
+result = run_standard_md("4LZT", "run_dir", crystal={"ix": 5}, resume=True)
+```
+
+To see all commands and flags:
+
+```bash
+md-workflows --help
+md-workflows run-pipeline --help
 ```
 
 ## Development

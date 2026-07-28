@@ -40,10 +40,14 @@ jobs:
           pip install '.[dev]'
 
       - name: Run ruff lint check
-        run: ruff check md_workflows
+        run: ruff check md_workflows tests
 
       - name: Run ruff format check
-        run: ruff format --check md_workflows
+        run: ruff format --check md_workflows tests
+
+      - name: Run tests
+        # Contract + CLI tests are gmx-free, so they run on the hosted runner.
+        run: pytest -q
 
   build-check:
     name: Dockerfile build checks (no push)
