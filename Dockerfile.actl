@@ -90,7 +90,7 @@ RUN chmod 0644 /usr/local/share/actl-md-workflows-shell-init.sh \
     && printf '\n# Astera md-workflows environment\n[ -r /usr/local/share/actl-md-workflows-shell-init.sh ] && . /usr/local/share/actl-md-workflows-shell-init.sh\n' >> /etc/bash.bashrc \
     && printf '\n# Astera md-workflows environment\n[ -r /usr/local/share/actl-md-workflows-shell-init.sh ] && . /usr/local/share/actl-md-workflows-shell-init.sh\n' >> /etc/zsh/zshrc \
     && for cmd in \
-        md_workflows.mdmx gmx micromamba less tcsh; do \
+        md-workflows gmx micromamba less tcsh; do \
           command -v "${cmd}" >/dev/null \
             || { echo "actl: inherited binary missing from PATH: ${cmd}" >&2; exit 1; }; \
         done
