@@ -79,12 +79,15 @@ case "$-" in
     ;;
 esac
 EOF
+# Smoke-check only binaries inherited from base/gromacs: the ENV PATH override above can shadow
+# them silently. Packages from the apt layer need no check -- apt-get already fails the build.
 RUN chmod 0644 /usr/local/share/actl-md-workflows-shell-init.sh \
     && printf '\n# Astera md-workflows environment\n[ -r /usr/local/share/actl-md-workflows-shell-init.sh ] && . /usr/local/share/actl-md-workflows-shell-init.sh\n' >> /etc/bash.bashrc \
     && printf '\n# Astera md-workflows environment\n[ -r /usr/local/share/actl-md-workflows-shell-init.sh ] && . /usr/local/share/actl-md-workflows-shell-init.sh\n' >> /etc/zsh/zshrc \
     && for cmd in \
-        md_workflows.mdmx gmx micromamba curl wget rsync tini vim nano emacs git zsh htop tmux ncdu ping dig; do \
-          command -v "${cmd}" >/dev/null; \
+        md_workflows.mdmx gmx micromamba less tcsh; do \
+          command -v "${cmd}" >/dev/null \
+            || { echo "actl: inherited binary missing from PATH: ${cmd}" >&2; exit 1; }; \
         done
 
 WORKDIR /home/dev

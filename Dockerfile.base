@@ -130,6 +130,14 @@ apt-get install -y /tmp/chimerax.deb \
     && rm -rf /var/lib/apt/lists/* \
     && mkdir -p /home/dev/.config/ChimeraX
 
+# ---------- interactive shells & pager ----------
+# Kept out of the build-time list at the top so runtime additions don't invalidate the unpinned
+# conda solve and ChimeraX fetch above. tcsh also provides /bin/csh (via update-alternatives).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        less \
+        tcsh \
+    && rm -rf /var/lib/apt/lists/*
+
 # ---------- shell init (minimal) ----------
 # Runs as root by default (see end of file); downstream images (Dockerfile.actl) own the
 # general user environment. Put the micromamba hook in the *global* bashrc so `micromamba

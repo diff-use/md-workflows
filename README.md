@@ -14,8 +14,9 @@ without rebuilding the base:
 | base    | `Dockerfile.base`    | CUDA 12.6 devel toolchain, micromamba/conda `lunus` env, lunus, ChimeraX. Architecture-neutral. |
 | gromacs | `Dockerfile.gromacs` | GROMACS (CUDA, tuned for H100 / AVX-512 by default) + the `md_workflows` package. The consumable image. |
 
-(An Astera-specific `Dockerfile.actl` overlay lives on the `astera` branch and adds workspace
-conventions on top of `gromacs`.)
+(An Astera-specific `Dockerfile.actl` overlay adds workspace conventions on top of `gromacs`. It
+is tracked here so it stays under CI lint coverage, but is built and published only from the
+`astera` deployment branch.)
 
 ## 1) Build the images
 
